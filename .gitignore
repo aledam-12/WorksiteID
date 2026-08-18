@@ -1,0 +1,54 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Build
+dist/
+build/
+coverage/
+
+# Go
+bin/
+*.test
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/
+
+# Secrets / cryptographic material
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+
+# Generated ZKP artifacts
+*.zkey
+*.wtns
+
+# Local infrastructure data
+infrastructure/data/
+infrastructure/volumes/
+
+# Fabric generated artifacts
+*.block
+*.tar.gz
+channel-artifacts/
+crypto-config/
