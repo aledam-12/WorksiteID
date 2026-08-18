@@ -1,6 +1,6 @@
-# WorksiteID 2.0
+# WorksiteID
 
-WorksiteID 2.0 è un prototipo universitario per la gestione della patente a crediti nei cantieri.
+WorksiteID è un prototipo universitario per la gestione della patente a crediti nei cantieri.
 
 Il progetto combina:
 
