@@ -42,3 +42,23 @@ La documentazione tecnica è disponibile nella directory `docs/`.
 * `docs/architecture.md` — architettura e responsabilità dei moduli
 * `docs/setup.md` — configurazione dell'ambiente e procedure di setup
 
+## Tecnologie
+
+### Backend
+
+- **Node.js + TypeScript** — logica applicativa e API.
+- **Fastify** — server HTTP e API.
+
+### Blockchain
+
+- **Hyperledger Fabric** — rete blockchain e smart contract.
+- **Hyperledger FireFly** — integrazione tra applicazione e infrastruttura blockchain.
+- **Go** — implementazione del chaincode.
+
+### Zero-Knowledge
+
+- **Zero-Knowledge Proofs** — verifica di informazioni senza rivelare i dati sottostanti.
+
+### Infrastructure
+
+- **Docker** — esecuzione e gestione dell'infrastruttura.
