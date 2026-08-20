@@ -1,6 +1,7 @@
 {
   "extends": "./backend/tsconfig.json",
   "compilerOptions": {
+    "rootDir": ".",
     "module": "CommonJS",
     "moduleResolution": "bundler",
     "types": ["jest", "node"],
