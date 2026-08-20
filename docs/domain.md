@@ -19,6 +19,15 @@ Rappresenta il lavoratore a cui è associata una patente.
 - `company` — impresa di appartenenza
 - `licenseId` — identificativo della patente associata
 
+### Inspector
+
+Rappresenta l'ispettore che opera nel sistema e che può emettere sanzioni.
+
+- `id` — identificativo univoco dell'ispettore
+
+L'Inspector rappresenta un'identità applicativa. Le modalità di autenticazione dell'ispettore non fanno parte del modello di dominio e saranno definite nelle issue successive.
+
+
 ### Patente
 
 Rappresenta la patente a crediti del lavoratore.
@@ -41,6 +50,7 @@ Rappresenta una penalizzazione applicata alla patente.
 - `inspectorId` — identificativo dell'ispettore che ha emesso la sanzione
 
 Non vengono definite tipologie specifiche di sanzione in questa versione del progetto.
+Ogni sanzione è associata alla patente a cui viene applicata e all'ispettore che l'ha emessa.
 
 ## Relazioni
 
@@ -48,6 +58,7 @@ Non vengono definite tipologie specifiche di sanzione in questa versione del pro
 classDiagram
     Worker "1" --> "1" Patente : possiede
     Patente "1" --> "0..*" Sanzione : contiene
+    Inspector "1" --> "0..*" Sanzione : emette
 
     class Worker {
         id
@@ -56,6 +67,10 @@ classDiagram
         cf
         company
         licenseId
+    }
+
+    class Inspector {
+        id
     }
 
     class Patente {
