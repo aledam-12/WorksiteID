@@ -2,39 +2,43 @@
 
 WorksiteID è un prototipo universitario per la gestione della patente a crediti nei cantieri.
 
-Il progetto combina:
+## Stack
 
-- Self-Sovereign Identity / Verifiable Credentials
-- WebAuthn
-- cifratura locale AES-256-GCM
-- pseudonimizzazione
+- Node.js
+- TypeScript
+- Fastify
+- Jest
+- ESLint
+- Prettier
+- Hyperledger FireFly
 - Hyperledger Fabric
-- FireFly
-- commitment crittografici
-- Zero-Knowledge Proof
-- challenge-response
-- versionamento dello stato
+- Go
+- Docker
 
-## Architettura
+## Prerequisiti
 
-Il sistema separa:
+Per l'avvio del progetto sono necessari:
 
-- identità e attestazioni
-- autenticazione del Holder
-- stato amministrativo
-- prova crittografica
-- ledger distribuito
+- Git
+- Node.js
+- npm
 
-Fabric viene utilizzato attraverso FireFly come livello di astrazione.
+Le componenti blockchain e l'ambiente FireFly/Fabric saranno configurati nelle issue dedicate.
 
-## Stato del progetto
+## Struttura
 
-Work in progress.
+* `backend/` — API e logica applicativa
+* `frontend/` — interfaccia utente
+* `chaincode/` — smart contract Hyperledger Fabric
+* `circuits/` — circuiti Zero-Knowledge Proof
+* `tests/` — test automatici
+* `scripts/` — script di setup, test e pulizia
+* `docs/` — documentazione tecnica
 
-## Ambiente
+## Documentazione
 
-Sviluppo locale tramite WSL e Docker.
+La documentazione tecnica è disponibile nella directory `docs/`.
 
-## Disclaimer
+* `docs/architecture.md` — architettura e responsabilità dei moduli
+* `docs/setup.md` — configurazione dell'ambiente e procedure di setup
 
-Il progetto è un prototipo universitario e non rappresenta un'implementazione production-grade di EUDI Wallet, SSI o di un sistema reale di gestione della patente a crediti.
