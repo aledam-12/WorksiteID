@@ -149,3 +149,53 @@ L'endpoint restituirà un esito:
 
 * `PASS` — la verifica è stata superata;
 * `NOT_PASS` — la verifica non è stata superata.
+
+## Credenziali WebAuthn
+
+Una credenziale WebAuthn rappresenta la credenziale utilizzata da un Worker o da un Inspector per autenticarsi tramite passkey.
+
+Una credenziale contiene:
+
+- `id` — identificativo univoco della credenziale
+- `userId` — identificativo dell'utente a cui appartiene
+- `userType` — tipo di utente (`WORKER` o `INSPECTOR`)
+- `publicKey` — chiave pubblica associata alla credenziale
+- `counter` — contatore utilizzato per il controllo delle autenticazioni
+
+Ogni utente può avere una sola credenziale WebAuthn nella versione attuale del progetto.
+
+Il `counter` viene aggiornato durante un'autenticazione riuscita e non può diminuire.
+
+Le credenziali WebAuthn sono utilizzate esclusivamente per l'autenticazione dell'identità applicativa e non rappresentano lo stato della patente a crediti.
+
+## Autenticazione WebAuthn
+
+L'autenticazione tramite WebAuthn è composta da due fasi.
+
+### Registrazione
+
+La registrazione di una credenziale segue il seguente flusso:
+
+1. verifica dell'esistenza dell'utente;
+2. verifica dell'assenza di una credenziale già registrata;
+3. generazione delle `RegistrationOptions`;
+4. generazione e memorizzazione del challenge;
+5. ricezione della risposta WebAuthn;
+6. verifica della risposta;
+7. creazione e persistenza della credenziale;
+8. eliminazione del challenge.
+
+### Autenticazione
+
+L'autenticazione segue il seguente flusso:
+
+1. verifica dell'esistenza dell'utente;
+2. recupero della credenziale WebAuthn;
+3. generazione delle `AuthenticationOptions`;
+4. generazione e memorizzazione del challenge;
+5. ricezione della risposta WebAuthn;
+6. verifica della risposta;
+7. aggiornamento del counter della credenziale;
+8. eliminazione del challenge.
+
+Un challenge non può essere riutilizzato dopo il completamento della relativa operazione.
