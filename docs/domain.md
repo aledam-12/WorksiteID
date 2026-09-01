@@ -199,3 +199,20 @@ L'autenticazione segue il seguente flusso:
 8. eliminazione del challenge.
 
 Un challenge non può essere riutilizzato dopo il completamento della relativa operazione.
+
+## Wallet
+
+Il Wallet rappresenta il contenitore locale dell'identità dell'utente sul dispositivo o client.
+
+### Struttura
+
+Un wallet è identificato da:
+
+- `userId` — identificativo univoco dell'utente associato (`Worker` o `Inspector`);
+- `userType` — tipologia di utente (`WORKER` o `INSPECTOR`).
+
+### Proprietà e vincoli architetturali
+
+- **Persistito localmente**: il wallet viene salvato e gestito localmente sul dispositivo dell'utente tramite un repository di storage locale (`LocalWalletRepository`).
+- **Non replica i dati della patente**: il wallet non duplica lo stato, i crediti o lo storico delle sanzioni della patente a crediti, che rimangono gestiti dal sistema centrale e dal ledger blockchain.
+- **Non contiene credenziali WebAuthn**: il wallet non include chiavi crittografiche o credenziali WebAuthn; queste ultime sono gestite in modo sicuro dagli authenticator del dispositivo e persistite separatamente tramite il `CredentialRepository`.
