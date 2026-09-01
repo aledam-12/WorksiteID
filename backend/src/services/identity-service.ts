@@ -28,7 +28,7 @@ class IdentityServiceImpl implements IdentityService {
     }
 
     async exists(id: string, userType: WebAuthnUserType): Promise<boolean> {
-        return this.findById(id, userType) !== null;
+        return (await this.findById(id, userType)) !== null;
     }
 
     async registerWorker(worker: Worker): Promise<void> {
