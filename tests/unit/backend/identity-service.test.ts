@@ -6,6 +6,7 @@ import { WorkerRepository } from "../../../backend/src/repositories/worker-repos
 import { InspectorRepository } from "../../../backend/src/repositories/inspector-repository.js";
 import { Worker } from "../../../backend/src/domain/worker.js";
 import { Inspector } from "../../../backend/src/domain/inspector.js";
+import { WebAuthnUserType } from "../../../backend/src/domain/webauthn-credentials.js";
 
 describe("IdentityService", () => {
     let workerRepository: jest.Mocked<WorkerRepository>;
@@ -108,4 +109,123 @@ describe("IdentityService", () => {
             expect(result).toBeNull();
         });
     });
+
+    describe("exists and findById operations", () => {
+        const worker = new Worker({
+            id: "WRK-001",
+            name: "Mario",
+            surname: "Rossi",
+            cf: "RSSMRA80A01H501U",
+            company: "Edilizia S.p.A.",
+            licenseId: "LIC-001",
+        });
+        const inspector = new Inspector("INSP-001");
+
+        it("should return true when Worker exists", async () => {
+            workerRepository.findById.mockResolvedValue(worker);
+
+            const exists = await identityService.exists(
+                "WRK-001",
+                WebAuthnUserType.WORKER,
+            );
+            const found = await identityService.findById(
+                "WRK-001",
+                WebAuthnUserType.WORKER,
+            );
+
+            expect(exists).toBe(true);
+            expect(found).toBe(worker);
+            expect(workerRepository.findById).toHaveBeenCalledWith("WRK-001");
+        });
+
+        it("should return false when Worker does not exist", async () => {
+            workerRepository.findById.mockResolvedValue(null);
+
+            const exists = await identityService.exists(
+                "WRK-999",
+                WebAuthnUserType.WORKER,
+            );
+            const found = await identityService.findById(
+                "WRK-999",
+                WebAuthnUserType.WORKER,
+            );
+
+            expect(exists).toBe(false);
+            expect(found).toBeNull();
+            expect(workerRepository.findById).toHaveBeenCalledWith("WRK-999");
+        });
+
+        it("should return true when Inspector exists", async () => {
+            inspectorRepository.findById.mockResolvedValue(inspector);
+
+            const exists = await identityService.exists(
+                "INSP-001",
+                WebAuthnUserType.INSPECTOR,
+            );
+            const found = await identityService.findById(
+                "INSP-001",
+                WebAuthnUserType.INSPECTOR,
+            );
+
+            expect(exists).toBe(true);
+            expect(found).toBe(inspector);
+            expect(inspectorRepository.findById).toHaveBeenCalledWith("INSP-001");
+        });
+
+        it("should return false when Inspector does not exist", async () => {
+            inspectorRepository.findById.mockResolvedValue(null);
+
+            const exists = await identityService.exists(
+                "INSP-999",
+                WebAuthnUserType.INSPECTOR,
+            );
+            const found = await identityService.findById(
+                "INSP-999",
+                WebAuthnUserType.INSPECTOR,
+            );
+
+            expect(exists).toBe(false);
+            expect(found).toBeNull();
+            expect(inspectorRepository.findById).toHaveBeenCalledWith("INSP-999");
+        });
+
+        it("should return false when a Worker ID is queried as Inspector", async () => {
+            workerRepository.findById.mockResolvedValue(worker);
+            inspectorRepository.findById.mockResolvedValue(null);
+
+            const exists = await identityService.exists(
+                "WRK-001",
+                WebAuthnUserType.INSPECTOR,
+            );
+            const found = await identityService.findById(
+                "WRK-001",
+                WebAuthnUserType.INSPECTOR,
+            );
+
+            expect(exists).toBe(false);
+            expect(found).toBeNull();
+            expect(inspectorRepository.findById).toHaveBeenCalledWith("WRK-001");
+            expect(workerRepository.findById).not.toHaveBeenCalled();
+        });
+
+        it("should return false when an Inspector ID is queried as Worker", async () => {
+            inspectorRepository.findById.mockResolvedValue(inspector);
+            workerRepository.findById.mockResolvedValue(null);
+
+            const exists = await identityService.exists(
+                "INSP-001",
+                WebAuthnUserType.WORKER,
+            );
+            const found = await identityService.findById(
+                "INSP-001",
+                WebAuthnUserType.WORKER,
+            );
+
+            expect(exists).toBe(false);
+            expect(found).toBeNull();
+            expect(workerRepository.findById).toHaveBeenCalledWith("INSP-001");
+            expect(inspectorRepository.findById).not.toHaveBeenCalled();
+        });
+    });
 });
+
