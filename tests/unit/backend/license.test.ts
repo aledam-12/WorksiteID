@@ -161,4 +161,51 @@ describe("License Domain Model", () => {
         expect(license.sanctions).toHaveLength(2);
         expect(license.sanctions).toEqual([sanction1, sanction2]);
     });
+
+    describe("fromLedger", () => {
+        it("should reconstruct an ACTIVE license from ledger data", () => {
+            const license = License.fromLedger({
+                id: "LIC-001",
+                credits: 25,
+                status: "ACTIVE",
+            });
+
+            expect(license).toBeInstanceOf(License);
+            expect(license.id).toBe("LIC-001");
+            expect(license.credits).toBe(25);
+            expect(license.licenseStatus).toBe(LicenseStatusEnum.ACTIVE);
+            expect(license.sanctions).toEqual([]);
+        });
+
+        it("should reconstruct a REVOKED license from ledger data", () => {
+            const license = License.fromLedger({
+                id: "LIC-002",
+                credits: 10,
+                status: "REVOKED",
+            });
+
+            expect(license).toBeInstanceOf(License);
+            expect(license.id).toBe("LIC-002");
+            expect(license.credits).toBe(10);
+            expect(license.licenseStatus).toBe(LicenseStatusEnum.REVOKED);
+        });
+
+        it("should reject unknown license statuses", () => {
+            expect(() =>
+                License.fromLedger({
+                    id: "LIC-003",
+                    credits: 30,
+                    status: "SUSPENDED",
+                }),
+            ).toThrow("Invalid license status: SUSPENDED");
+
+            expect(() =>
+                License.fromLedger({
+                    id: "LIC-003",
+                    credits: 30,
+                    status: "unknown",
+                }),
+            ).toThrow("Invalid license status: unknown");
+        });
+    });
 });

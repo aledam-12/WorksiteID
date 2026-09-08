@@ -21,6 +21,19 @@ export class License {
         this.#sanctions = [];
     }
 
+    static fromLedger(data: { id: string; credits: number; status: string }): License {
+        if (!data || typeof data !== "object") {
+            throw new Error("Ledger data must be an object");
+        }
+        if (!Object.values(LicenseStatusEnum).includes(data.status as LicenseStatusEnum)) {
+            throw new Error(`Invalid license status: ${data.status}`);
+        }
+        const license = new License(data.id);
+        license.#credits = data.credits;
+        license.#licenseStatus = data.status as LicenseStatusEnum;
+        return license;
+    }
+
     get id(): string {
         return this.#id;
     }

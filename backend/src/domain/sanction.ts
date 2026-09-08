@@ -1,5 +1,4 @@
-// Un'interfaccia semplice che descrive solo i dati di input
-interface SanctionData {
+export interface SanctionData {
     id: string;
     penalty: number;
     licenseId: string;

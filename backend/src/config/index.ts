@@ -18,18 +18,29 @@ function checkString(value: string | null | undefined, name: string): string {
     }
     return value.trim();
 }
-const fireflyUrl = checkString(process.env.FIREFLY_API_URL, "FIREFLY_API_URL");
+// Supporta FIREFLY_URL con fallback a FIREFLY_API_URL e default di sviluppo
+const fireflyUrlVarName = process.env.FIREFLY_URL !== undefined ? "FIREFLY_URL" : "FIREFLY_API_URL";
+const fireflyUrlRaw = process.env.FIREFLY_URL ?? process.env.FIREFLY_API_URL ?? "http://127.0.0.1:5001";
+const fireflyUrl = checkString(fireflyUrlRaw, fireflyUrlVarName);
 try {
-    new URL(fireflyUrl)
+    new URL(fireflyUrl);
 } catch {
-    throw new Error("FIREFLY_API_URL must be a valid URL");
+    throw new Error(`${fireflyUrlVarName} must be a valid URL`);
 }
-const fireflyNamespace = checkString(process.env.FIREFLY_NAMESPACE, "FIREFLY_NAMESPACE")
-const fireflyIssuerId = checkString(process.env.FIREFLY_ISSUER_ID, "FIREFLY_ISSUER_ID")
+
+const fireflyNamespaceRaw = process.env.FIREFLY_NAMESPACE ?? "default";
+const fireflyNamespace = checkString(fireflyNamespaceRaw, "FIREFLY_NAMESPACE");
+
+const fireflyIssuerId = checkString(process.env.FIREFLY_ISSUER_ID ?? "worksiteid-issuer", "FIREFLY_ISSUER_ID");
+
+const fireflyApiNameRaw = process.env.FIREFLY_API_NAME ?? "sanction_contract";
+const fireflyApiName = checkString(fireflyApiNameRaw, "FIREFLY_API_NAME");
+
 export const envConfig = {
     nodeEnv,
     port,
     fireflyUrl,
     fireflyNamespace,
     fireflyIssuerId,
-}
+    fireflyApiName,
+};

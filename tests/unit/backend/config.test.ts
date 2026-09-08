@@ -29,6 +29,7 @@ describe("envConfig", () => {
             fireflyUrl: "http://localhost:5000",
             fireflyNamespace: "default",
             fireflyIssuerId: "worksiteid-issuer",
+            fireflyApiName: "sanction_contract",
         });
     });
 
@@ -42,6 +43,33 @@ describe("envConfig", () => {
 
         expect(envConfig.nodeEnv).toBe("development");
         expect(envConfig.port).toBe(3000);
+    });
+
+    it("should use development defaults when FIREFLY env vars are not set in development", async () => {
+        delete process.env.FIREFLY_API_URL;
+        delete process.env.FIREFLY_URL;
+        delete process.env.FIREFLY_NAMESPACE;
+        delete process.env.FIREFLY_API_NAME;
+        process.env.NODE_ENV = "development";
+
+        const { envConfig } = await import(
+            "../../../backend/src/config/index.ts"
+        );
+
+        expect(envConfig.fireflyUrl).toBe("http://127.0.0.1:5001");
+        expect(envConfig.fireflyNamespace).toBe("default");
+        expect(envConfig.fireflyApiName).toBe("sanction_contract");
+    });
+
+    it("should prioritize FIREFLY_URL over FIREFLY_API_URL", async () => {
+        process.env.FIREFLY_URL = "http://127.0.0.1:5001";
+        process.env.FIREFLY_API_URL = "http://localhost:5000";
+
+        const { envConfig } = await import(
+            "../../../backend/src/config/index.ts"
+        );
+
+        expect(envConfig.fireflyUrl).toBe("http://127.0.0.1:5001");
     });
 
     it("should reject an invalid NODE_ENV", async () => {
@@ -69,6 +97,7 @@ describe("envConfig", () => {
     });
 
     it("should reject an empty FIREFLY_API_URL", async () => {
+        delete process.env.FIREFLY_URL;
         process.env.FIREFLY_API_URL = "";
 
         await expect(
@@ -76,12 +105,29 @@ describe("envConfig", () => {
         ).rejects.toThrow("FIREFLY_API_URL must not be empty");
     });
 
+    it("should reject an empty FIREFLY_URL", async () => {
+        process.env.FIREFLY_URL = "";
+
+        await expect(
+            import("../../../backend/src/config/index.ts"),
+        ).rejects.toThrow("FIREFLY_URL must not be empty");
+    });
+
     it("should reject an invalid FIREFLY_API_URL", async () => {
+        delete process.env.FIREFLY_URL;
         process.env.FIREFLY_API_URL = "not-a-url";
 
         await expect(
             import("../../../backend/src/config/index.ts"),
         ).rejects.toThrow("FIREFLY_API_URL must be a valid URL");
+    });
+
+    it("should reject an invalid FIREFLY_URL", async () => {
+        process.env.FIREFLY_URL = "not-a-url";
+
+        await expect(
+            import("../../../backend/src/config/index.ts"),
+        ).rejects.toThrow("FIREFLY_URL must be a valid URL");
     });
 
     it("should reject an empty FIREFLY_NAMESPACE", async () => {
@@ -100,10 +146,19 @@ describe("envConfig", () => {
         ).rejects.toThrow("FIREFLY_ISSUER_ID must not be empty");
     });
 
+    it("should reject an empty FIREFLY_API_NAME", async () => {
+        process.env.FIREFLY_API_NAME = "";
+
+        await expect(
+            import("../../../backend/src/config/index.ts"),
+        ).rejects.toThrow("FIREFLY_API_NAME must not be empty");
+    });
+
     it("should trim string configuration values", async () => {
         process.env.FIREFLY_API_URL = "  http://localhost:5000  ";
         process.env.FIREFLY_NAMESPACE = "  default  ";
         process.env.FIREFLY_ISSUER_ID = "  worksiteid-issuer  ";
+        process.env.FIREFLY_API_NAME = "  sanction_contract  ";
 
         const { envConfig } = await import(
             "../../../backend/src/config/index.ts"
@@ -112,5 +167,6 @@ describe("envConfig", () => {
         expect(envConfig.fireflyUrl).toBe("http://localhost:5000");
         expect(envConfig.fireflyNamespace).toBe("default");
         expect(envConfig.fireflyIssuerId).toBe("worksiteid-issuer");
+        expect(envConfig.fireflyApiName).toBe("sanction_contract");
     });
 });
