@@ -46,6 +46,16 @@ Una nuova patente viene inizializzata con `30` crediti e stato `ACTIVE`.
 
 Il modello della patente viene utilizzato anche dal chaincode come rappresentazione dello stato mantenuto sul ledger.
 
+### PublicLicenseState
+
+Rappresenta lo stato pubblico della patente destinato al ledger blockchain, separato dal modello privato (`PrivateLicenseState`) conservato nel wallet del lavoratore.
+
+* `licenseRef` — identificatore opaco/pseudonimo della patente sul ledger (distinto dal `licenseId` reale);
+* `commitment` — commitment crittografico dello stato privato;
+* `version` — numero di versione (intero positivo $\ge 1$) per il tracciamento delle transizioni di stato.
+
+Sul ledger non vengono rappresentati i dati privati (`licenseId` reale, `credits`, `status`, `randomness`), preservando la riservatezza delle informazioni del lavoratore.
+
 ### Sanzione
 
 Rappresenta una penalizzazione applicata alla patente.

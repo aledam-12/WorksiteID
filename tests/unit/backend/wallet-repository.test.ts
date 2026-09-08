@@ -20,16 +20,25 @@ describe("InMemoryWalletRepository", () => {
 
   const createWorkerWallet = (
     userId = "WRK-001",
-    licenseState?: Partial<PrivateLicenseState>,
+    licenseState?: Partial<{
+      licenseId: string;
+      credits: number;
+      status: LicenseStatusEnum;
+      randomness: string;
+      version: number;
+    }>,
   ) =>
-    new Wallet(userId, WebAuthnUserType.WORKER, {
-      licenseId: "LIC-001",
-      credits: 30,
-      status: LicenseStatusEnum.ACTIVE,
-      randomness: commitmentService.generateRandomness(),
-      version: 1,
-      ...licenseState,
-    });
+    new Wallet(
+      userId,
+      WebAuthnUserType.WORKER,
+      new PrivateLicenseState(
+        licenseState?.licenseId ?? "LIC-001",
+        licenseState?.credits ?? 30,
+        licenseState?.status ?? LicenseStatusEnum.ACTIVE,
+        licenseState?.randomness ?? commitmentService.generateRandomness(),
+        licenseState?.version ?? 1,
+      ),
+    );
 
   beforeEach(() => {
     repository = new InMemoryWalletRepository();
@@ -43,6 +52,7 @@ describe("InMemoryWalletRepository", () => {
 
       const found = await repository.findByUserId(wallet.userId);
       expect(found).toEqual(wallet);
+      expect(found?.licenseState).toBeInstanceOf(PrivateLicenseState);
       expect(found?.licenseState?.licenseId).toBe("LIC-001");
       expect(found?.licenseState?.credits).toBe(30);
       expect(found?.licenseState?.status).toBe(LicenseStatusEnum.ACTIVE);
@@ -59,6 +69,43 @@ describe("InMemoryWalletRepository", () => {
       expect(found).toEqual(wallet);
       expect(found?.userType).toBe(WebAuthnUserType.INSPECTOR);
       expect(found?.licenseState).toBeUndefined();
+    });
+  });
+
+  describe("update", () => {
+    it("should update an existing wallet", async () => {
+      const wallet = createWorkerWallet();
+      await repository.register(wallet);
+
+      const updatedRandomness = commitmentService.generateRandomness();
+      const updatedWallet = new Wallet(
+        wallet.userId,
+        wallet.userType,
+        new PrivateLicenseState(
+          "LIC-001",
+          25,
+          LicenseStatusEnum.ACTIVE,
+          updatedRandomness,
+          2,
+        ),
+      );
+
+      await repository.update(updatedWallet);
+
+      const found = await repository.findByUserId(wallet.userId);
+      expect(found).toEqual(updatedWallet);
+      expect(found?.licenseState).toBeInstanceOf(PrivateLicenseState);
+      expect(found?.licenseState?.credits).toBe(25);
+      expect(found?.licenseState?.randomness).toBe(updatedRandomness);
+      expect(found?.licenseState?.version).toBe(2);
+    });
+
+    it("should throw when updating a non-existent wallet", async () => {
+      const wallet = createWorkerWallet("WRK-999");
+
+      await expect(repository.update(wallet)).rejects.toThrow(
+        "Wallet does not exist",
+      );
     });
   });
 
@@ -116,16 +163,25 @@ describe("LocalWalletRepository", () => {
 
   const createWorkerWallet = (
     userId = "WRK-001",
-    licenseState?: Partial<PrivateLicenseState>,
+    licenseState?: Partial<{
+      licenseId: string;
+      credits: number;
+      status: LicenseStatusEnum;
+      randomness: string;
+      version: number;
+    }>,
   ) =>
-    new Wallet(userId, WebAuthnUserType.WORKER, {
-      licenseId: "LIC-001",
-      credits: 30,
-      status: LicenseStatusEnum.ACTIVE,
-      randomness: commitmentService.generateRandomness(),
-      version: 1,
-      ...licenseState,
-    });
+    new Wallet(
+      userId,
+      WebAuthnUserType.WORKER,
+      new PrivateLicenseState(
+        licenseState?.licenseId ?? "LIC-001",
+        licenseState?.credits ?? 30,
+        licenseState?.status ?? LicenseStatusEnum.ACTIVE,
+        licenseState?.randomness ?? commitmentService.generateRandomness(),
+        licenseState?.version ?? 1,
+      ),
+    );
 
   beforeEach(async () => {
     tempDir = await mkdtemp(join(tmpdir(), "wallet-repo-test-"));
@@ -149,6 +205,7 @@ describe("LocalWalletRepository", () => {
       expect(found?.userId).toBe("WRK-001");
       expect(found?.userType).toBe(WebAuthnUserType.WORKER);
       expect(found?.licenseState).toBeDefined();
+      expect(found?.licenseState).toBeInstanceOf(PrivateLicenseState);
       expect(found?.licenseState?.licenseId).toBe("LIC-001");
       expect(found?.licenseState?.credits).toBe(30);
       expect(found?.licenseState?.status).toBe(LicenseStatusEnum.ACTIVE);
@@ -173,6 +230,46 @@ describe("LocalWalletRepository", () => {
       const found = await repository.findByUserId("WRK-999");
 
       expect(found).toBeNull();
+    });
+  });
+
+  describe("update", () => {
+    it("should update an existing wallet and persist changes to disk", async () => {
+      const wallet = createWorkerWallet("WRK-001");
+      await repository.register(wallet);
+
+      const updatedRandomness = commitmentService.generateRandomness();
+      const updatedWallet = new Wallet(
+        wallet.userId,
+        wallet.userType,
+        new PrivateLicenseState(
+          "LIC-001",
+          0,
+          LicenseStatusEnum.REVOKED,
+          updatedRandomness,
+          2,
+        ),
+      );
+
+      await repository.update(updatedWallet);
+
+      const freshRepository = new LocalWalletRepository(filePath);
+      const found = await freshRepository.findByUserId("WRK-001");
+
+      expect(found).toBeInstanceOf(Wallet);
+      expect(found?.licenseState).toBeInstanceOf(PrivateLicenseState);
+      expect(found?.licenseState?.credits).toBe(0);
+      expect(found?.licenseState?.status).toBe(LicenseStatusEnum.REVOKED);
+      expect(found?.licenseState?.randomness).toBe(updatedRandomness);
+      expect(found?.licenseState?.version).toBe(2);
+    });
+
+    it("should throw when updating a non-existent wallet", async () => {
+      const wallet = createWorkerWallet("WRK-999");
+
+      await expect(repository.update(wallet)).rejects.toThrow(
+        "Wallet does not exist",
+      );
     });
   });
 
@@ -232,6 +329,7 @@ describe("LocalWalletRepository", () => {
       const foundWorker = await secondRepository.findByUserId("WRK-001");
       expect(foundWorker).toEqual(workerWallet);
       expect(foundWorker).toBeInstanceOf(Wallet);
+      expect(foundWorker?.licenseState).toBeInstanceOf(PrivateLicenseState);
       expect(foundWorker?.licenseState?.licenseId).toBe("LIC-999");
       expect(foundWorker?.licenseState?.credits).toBe(25);
       expect(foundWorker?.licenseState?.status).toBe(LicenseStatusEnum.ACTIVE);

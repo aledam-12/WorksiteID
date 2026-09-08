@@ -9,6 +9,11 @@ export interface WalletService {
     licenseState?: PrivateLicenseState,
   ): Promise<Wallet>;
 
+  updateLicenseState(
+    userId: string,
+    licenseState: PrivateLicenseState,
+  ): Promise<Wallet>;
+
   getWallet(userId: string): Promise<Wallet | null>;
 }
 
@@ -31,6 +36,26 @@ export class WalletServiceImpl implements WalletService {
     await this.walletRepository.register(wallet);
 
     return wallet;
+  }
+
+  async updateLicenseState(
+    userId: string,
+    licenseState: PrivateLicenseState,
+  ): Promise<Wallet> {
+    const wallet = await this.walletRepository.findByUserId(userId);
+
+    if (!wallet) {
+      throw new Error("Wallet does not exist");
+    }
+
+    if (wallet.userType !== WebAuthnUserType.WORKER) {
+      throw new Error("Cannot update license state for non-worker wallet");
+    }
+
+    const updated = new Wallet(wallet.userId, wallet.userType, licenseState);
+    await this.walletRepository.update(updated);
+
+    return updated;
   }
 
   async getWallet(userId: string): Promise<Wallet | null> {

@@ -79,10 +79,6 @@ export class CommitmentServiceImpl implements CommitmentService {
             return JSON.stringify(value);
         }
 
-        if (typeof value === "bigint") {
-            return value.toString();
-        }
-
         if (value instanceof Date) {
             return JSON.stringify(value.toISOString());
         }

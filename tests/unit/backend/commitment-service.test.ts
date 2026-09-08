@@ -141,6 +141,15 @@ describe("CommitmentService", () => {
                 "Cannot canonicalize non-finite number",
             );
         });
+
+        it("should reject bigint values as unsupported", () => {
+            expect(() => commitmentService.canonicalize(10n)).toThrow(
+                "Unsupported value type: bigint",
+            );
+            expect(() =>
+                commitmentService.canonicalize({ amount: 10n }),
+            ).toThrow("Unsupported value type: bigint");
+        });
     });
 
     describe("createCommitment", () => {

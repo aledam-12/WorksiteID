@@ -5,6 +5,7 @@ import { WebAuthnUserType } from "../domain/webauthn-credentials.js";
 
 export interface WalletRepository {
   register(wallet: Wallet): Promise<void>;
+  update(wallet: Wallet): Promise<void>;
   findByUserId(userId: string): Promise<Wallet | null>;
   existsByUserId(userId: string): Promise<boolean>;
 }
@@ -15,6 +16,14 @@ export class InMemoryWalletRepository implements WalletRepository {
   async register(wallet: Wallet): Promise<void> {
     if (await this.existsByUserId(wallet.userId)) {
       throw new Error("Wallet already exists");
+    }
+
+    this.wallets.set(wallet.userId, wallet);
+  }
+
+  async update(wallet: Wallet): Promise<void> {
+    if (!(await this.existsByUserId(wallet.userId))) {
+      throw new Error("Wallet does not exist");
     }
 
     this.wallets.set(wallet.userId, wallet);
@@ -32,14 +41,30 @@ export class InMemoryWalletRepository implements WalletRepository {
 interface WalletData {
   userId: string;
   userType: WebAuthnUserType;
-  licenseState?: PrivateLicenseState;
+  licenseState?: {
+    licenseId: string;
+    credits: number;
+    status: PrivateLicenseState["status"];
+    randomness: string;
+    version: number;
+  };
 }
 
 export class LocalWalletRepository implements WalletRepository {
   constructor(private readonly filePath: string) {}
 
   private toDomain(data: WalletData): Wallet {
-    return new Wallet(data.userId, data.userType, data.licenseState);
+    const licenseState = data.licenseState
+      ? new PrivateLicenseState(
+          data.licenseState.licenseId,
+          data.licenseState.credits,
+          data.licenseState.status,
+          data.licenseState.randomness,
+          data.licenseState.version,
+        )
+      : undefined;
+
+    return new Wallet(data.userId, data.userType, licenseState);
   }
 
   private toData(wallet: Wallet): WalletData {
@@ -88,6 +113,19 @@ export class LocalWalletRepository implements WalletRepository {
     }
 
     wallets.push(this.toData(wallet));
+
+    await this.saveWallets(wallets);
+  }
+
+  async update(wallet: Wallet): Promise<void> {
+    const wallets = await this.loadWallets();
+    const index = wallets.findIndex((item) => item.userId === wallet.userId);
+
+    if (index === -1) {
+      throw new Error("Wallet does not exist");
+    }
+
+    wallets[index] = this.toData(wallet);
 
     await this.saveWallets(wallets);
   }
