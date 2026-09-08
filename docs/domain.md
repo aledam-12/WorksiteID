@@ -250,12 +250,10 @@ Il Wallet rappresenta il contenitore locale dell'identità dell'utente sul dispo
 Un wallet è identificato da:
 
 * `userId` — identificativo univoco dell'utente associato;
-* `userType` — tipologia di utente (`WORKER` o `INSPECTOR`).
+* `userType` — tipologia di utente (`WORKER` o `INSPECTOR`);
+* `licenseState` — presente esclusivamente per i wallet di tipo `WORKER`, rappresenta il `PrivateLicenseState` contenente i dati privati della patente necessari per il commitment dello stato.
 
 ### Proprietà e vincoli architetturali
 
 * **Persistito localmente**: il wallet viene salvato e gestito localmente sul dispositivo dell'utente tramite un repository di storage locale (`LocalWalletRepository`).
-* **Non replica i dati della patente**: il wallet non duplica lo stato, i crediti o lo storico delle sanzioni della patente a crediti, che rimangono gestiti dal sistema centrale e dal ledger blockchain.
 * **Non contiene credenziali WebAuthn**: il wallet non include chiavi crittografiche o credenziali WebAuthn; queste ultime sono gestite dagli authenticator del dispositivo e persistite separatamente tramite il `CredentialRepository`.
-
-La protezione crittografica del wallet non è attualmente implementata. L'eventuale utilizzo di AES-GCM o di altri meccanismi di cifratura verrà valutato nelle issue successive in funzione delle esigenze del protocollo ZKP.
