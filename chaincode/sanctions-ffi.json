@@ -1,0 +1,156 @@
+{
+  "name": "sanctions",
+  "version": "1.0",
+  "description": "FireFly Interface (FFI) for WorksiteID Sanctions Chaincode",
+  "methods": [
+    {
+      "name": "CreateLicense",
+      "description": "Crea una nuova patente a crediti sul ledger",
+      "params": [
+        {
+          "name": "licenseID",
+          "schema": {
+            "type": "string",
+            "description": "Identificativo univoco della patente"
+          }
+        },
+        {
+          "name": "credits",
+          "schema": {
+            "type": "integer",
+            "description": "Numero iniziale di crediti (es. 30)"
+          }
+        }
+      ],
+      "returns": []
+    },
+    {
+      "name": "GetLicense",
+      "description": "Recupera una patente a crediti dal ledger tramite il suo ID",
+      "params": [
+        {
+          "name": "licenseID",
+          "schema": {
+            "type": "string",
+            "description": "Identificativo della patente da recuperare"
+          }
+        }
+      ],
+      "returns": [
+        {
+          "name": "license",
+          "schema": {
+            "type": "object",
+            "description": "Stato della patente memorizzato sul ledger",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "credits": {
+                "type": "integer"
+              },
+              "status": {
+                "type": "string",
+                "enum": ["ACTIVE", "REVOKED"]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "IssueSanction",
+      "description": "Emette una nuova sanzione, riduce i crediti della patente e aggiorna lo stato",
+      "params": [
+        {
+          "name": "sanctionID",
+          "schema": {
+            "type": "string",
+            "description": "Identificativo univoco della sanzione"
+          }
+        },
+        {
+          "name": "licenseID",
+          "schema": {
+            "type": "string",
+            "description": "Identificativo della patente a cui applicare la sanzione"
+          }
+        },
+        {
+          "name": "penalty",
+          "schema": {
+            "type": "integer",
+            "description": "Numero di crediti da decurtare (maggiore di 0)"
+          }
+        },
+        {
+          "name": "reason",
+          "schema": {
+            "type": "string",
+            "description": "Motivazione dell'infrazione"
+          }
+        },
+        {
+          "name": "issuedAt",
+          "schema": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp ISO 8601 dell'emissione"
+          }
+        },
+        {
+          "name": "inspectorID",
+          "schema": {
+            "type": "string",
+            "description": "Identificativo dell'ispettore che emette la sanzione"
+          }
+        }
+      ],
+      "returns": []
+    },
+    {
+      "name": "GetSanction",
+      "description": "Recupera i dettagli di una sanzione memorizzata sul ledger",
+      "params": [
+        {
+          "name": "sanctionID",
+          "schema": {
+            "type": "string",
+            "description": "Identificativo della sanzione da recuperare"
+          }
+        }
+      ],
+      "returns": [
+        {
+          "name": "sanction",
+          "schema": {
+            "type": "object",
+            "description": "Dettagli della sanzione",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "licenseId": {
+                "type": "string"
+              },
+              "penalty": {
+                "type": "integer"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "issuedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "inspectorId": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "events": []
+}

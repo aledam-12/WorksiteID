@@ -12,52 +12,64 @@ Il modello è indipendente dalle tecnologie utilizzate per autenticazione, persi
 
 Rappresenta il lavoratore a cui è associata una patente.
 
-- `id` — identificativo univoco del lavoratore
-- `name` — nome del lavoratore
-- `surname` — cognome del lavoratore
-- `cf` — codice fiscale
-- `company` — impresa di appartenenza
-- `licenseId` — identificativo della patente associata
+* `id` — identificativo univoco del lavoratore
+* `name` — nome del lavoratore
+* `surname` — cognome del lavoratore
+* `cf` — codice fiscale
+* `company` — impresa di appartenenza
+* `licenseId` — identificativo della patente associata
 
 ### Inspector
 
 Rappresenta l'ispettore che opera nel sistema e che può emettere sanzioni.
 
-- `id` — identificativo univoco dell'ispettore
+* `id` — identificativo univoco dell'ispettore
 
-L'Inspector rappresenta un'identità applicativa. Le modalità di autenticazione dell'ispettore non fanno parte del modello di dominio e saranno definite nelle issue successive.
+L'Inspector rappresenta un'identità applicativa.
 
+L'autenticazione dell'Inspector viene gestita dal sistema comune WebAuthn e non fa parte del modello di dominio.
 
 ### Patente
 
 Rappresenta la patente a crediti del lavoratore.
 
-- `id` — identificativo univoco della patente
-- `credits` — numero corrente di crediti
-- `status` — stato corrente della patente
+* `id` — identificativo univoco della patente
+* `credits` — numero corrente di crediti
+* `status` — stato corrente della patente
 
-La patente viene creata con **30 crediti** e stato `ACTIVE`.
+La patente può avere i seguenti stati:
+
+* `ACTIVE`
+* `REVOKED`
+
+Una nuova patente viene inizializzata con `30` crediti e stato `ACTIVE`.
+
+Il modello della patente viene utilizzato anche dal chaincode come rappresentazione dello stato mantenuto sul ledger.
 
 ### Sanzione
 
 Rappresenta una penalizzazione applicata alla patente.
 
-- `id` — identificativo della sanzione
-- `penalty` — numero di crediti da sottrarre
-- `licenseId` — identificativo della patente a cui è associata
-- `reason` — motivazione della sanzione
-- `issuedAt` — momento di emissione
-- `inspectorId` — identificativo dell'ispettore che ha emesso la sanzione
+* `id` — identificativo della sanzione
+* `penalty` — numero di crediti da sottrarre
+* `licenseId` — identificativo della patente a cui è associata
+* `reason` — motivazione della sanzione
+* `issuedAt` — momento di emissione
+* `inspectorId` — identificativo dell'ispettore che ha emesso la sanzione
 
 Non vengono definite tipologie specifiche di sanzione in questa versione del progetto.
-Ogni sanzione è associata alla patente a cui viene applicata e all'ispettore che l'ha emessa.
+
+Ogni sanzione è associata alla patente a cui viene applicata e all'Inspector che l'ha emessa.
+
+Il modello della sanzione viene utilizzato anche dal chaincode come rappresentazione dei dati salvati sul ledger.
 
 ## Relazioni
 
 ```mermaid
 classDiagram
+
     Worker "1" --> "1" Patente : possiede
-    Patente "1" --> "0..*" Sanzione : contiene
+    Patente "1" --> "0..*" Sanzione : riceve
     Inspector "1" --> "0..*" Sanzione : emette
 
     class Worker {
@@ -89,16 +101,28 @@ classDiagram
     }
 ```
 
-Ogni lavoratore possiede una patente e una patente può avere zero o più sanzioni. <br>
+Ogni lavoratore possiede una patente e una patente può avere zero o più sanzioni.
+
 I dati anagrafici del Worker appartengono al dominio applicativo e non implicano che vengano memorizzati sulla blockchain o inclusi nei dati utilizzati per la generazione dei commitment.
+
 ## Regole di dominio
 
 ### Crediti iniziali
 
 Ogni nuova patente viene inizializzata con:
 
-* `30` crediti
-* stato `ACTIVE`
+* `30` crediti;
+* stato `ACTIVE`.
+
+### Validazione della patente
+
+Una patente deve rispettare i seguenti vincoli:
+
+* `id` non può essere vuoto;
+* `credits` non può essere negativo;
+* `status` deve essere `ACTIVE` oppure `REVOKED`.
+
+Quando una patente viene creata con meno di `15` crediti, viene inizializzata direttamente come `REVOKED`.
 
 ### Applicazione di una sanzione
 
@@ -106,9 +130,11 @@ L'applicazione di una sanzione riduce il numero di crediti della patente del val
 
 Una sanzione deve avere una penalizzazione maggiore di zero.
 
-I crediti non possono diventare negativi. Se la penalizzazione supera i crediti disponibili, il valore viene portato a `0`.
+I crediti non possono diventare negativi.
 
-L'applicazione della sanzione viene registrata nello storico della patente.
+Se la penalizzazione supera i crediti disponibili, il valore viene portato a `0`.
+
+L'applicazione della sanzione aggiorna lo stato della patente quando necessario e viene registrata nello storico della patente tramite la persistenza della sanzione sul ledger.
 
 ### Revoca
 
@@ -122,6 +148,19 @@ La soglia è quindi:
 Una patente `REVOKED` non può tornare `ACTIVE` nella versione attuale del progetto.
 
 Non vengono implementati meccanismi di recupero o reintegro dei crediti.
+
+### Sanzione
+
+Una sanzione deve rispettare i seguenti vincoli:
+
+* `id` non può essere vuoto;
+* `licenseId` non può essere vuoto;
+* `penalty` deve essere maggiore di `0`;
+* `reason` non può essere vuota;
+* `issuedAt` deve essere valorizzato;
+* `inspectorId` non può essere vuoto.
+
+Il chaincode impedisce inoltre la registrazione di una sanzione con un `id` già presente sul ledger.
 
 ## Stato della patente
 
@@ -150,17 +189,19 @@ L'endpoint restituirà un esito:
 * `PASS` — la verifica è stata superata;
 * `NOT_PASS` — la verifica non è stata superata.
 
+La generazione dei commitment e delle ZKP non fa parte del modello di dominio attualmente implementato.
+
 ## Credenziali WebAuthn
 
 Una credenziale WebAuthn rappresenta la credenziale utilizzata da un Worker o da un Inspector per autenticarsi tramite passkey.
 
 Una credenziale contiene:
 
-- `id` — identificativo univoco della credenziale
-- `userId` — identificativo dell'utente a cui appartiene
-- `userType` — tipo di utente (`WORKER` o `INSPECTOR`)
-- `publicKey` — chiave pubblica associata alla credenziale
-- `counter` — contatore utilizzato per il controllo delle autenticazioni
+* `id` — identificativo univoco della credenziale;
+* `userId` — identificativo dell'utente a cui appartiene;
+* `userType` — tipo di utente (`WORKER` o `INSPECTOR`);
+* `publicKey` — chiave pubblica associata alla credenziale;
+* `counter` — contatore utilizzato per il controllo delle autenticazioni.
 
 Ogni utente può avere una sola credenziale WebAuthn nella versione attuale del progetto.
 
@@ -208,11 +249,13 @@ Il Wallet rappresenta il contenitore locale dell'identità dell'utente sul dispo
 
 Un wallet è identificato da:
 
-- `userId` — identificativo univoco dell'utente associato (`Worker` o `Inspector`);
-- `userType` — tipologia di utente (`WORKER` o `INSPECTOR`).
+* `userId` — identificativo univoco dell'utente associato;
+* `userType` — tipologia di utente (`WORKER` o `INSPECTOR`).
 
 ### Proprietà e vincoli architetturali
 
-- **Persistito localmente**: il wallet viene salvato e gestito localmente sul dispositivo dell'utente tramite un repository di storage locale (`LocalWalletRepository`).
-- **Non replica i dati della patente**: il wallet non duplica lo stato, i crediti o lo storico delle sanzioni della patente a crediti, che rimangono gestiti dal sistema centrale e dal ledger blockchain.
-- **Non contiene credenziali WebAuthn**: il wallet non include chiavi crittografiche o credenziali WebAuthn; queste ultime sono gestite in modo sicuro dagli authenticator del dispositivo e persistite separatamente tramite il `CredentialRepository`.
+* **Persistito localmente**: il wallet viene salvato e gestito localmente sul dispositivo dell'utente tramite un repository di storage locale (`LocalWalletRepository`).
+* **Non replica i dati della patente**: il wallet non duplica lo stato, i crediti o lo storico delle sanzioni della patente a crediti, che rimangono gestiti dal sistema centrale e dal ledger blockchain.
+* **Non contiene credenziali WebAuthn**: il wallet non include chiavi crittografiche o credenziali WebAuthn; queste ultime sono gestite dagli authenticator del dispositivo e persistite separatamente tramite il `CredentialRepository`.
+
+La protezione crittografica del wallet non è attualmente implementata. L'eventuale utilizzo di AES-GCM o di altri meccanismi di cifratura verrà valutato nelle issue successive in funzione delle esigenze del protocollo ZKP.

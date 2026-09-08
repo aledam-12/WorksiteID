@@ -58,3 +58,47 @@ ff stop worksiteid
 ```
 
 Lo stack viene generato e gestito da FireFly nella directory locale dell'utente e non viene versionato nella repository WorksiteID.
+
+## Chaincode
+
+Il chaincode di WorksiteID è sviluppato in Go e si trova nella directory:
+
+```text
+chaincode/
+```
+
+Per verificare che il chaincode sia compilabile ed eseguire i test:
+
+```bash
+cd chaincode
+go test ./...
+```
+
+È inoltre consigliato verificare il formato del codice e la presenza di eventuali problemi statici:
+
+```bash
+gofmt -w .
+go vet ./...
+```
+
+Il chaincode utilizza `fabric-contract-api-go` ed è destinato alla rete Hyperledger Fabric configurata dallo stack FireFly `worksiteid`.
+
+Il canale Fabric utilizzato dallo stack è:
+
+```text
+firefly
+```
+
+Il deployment del chaincode viene effettuato tramite FireFly CLI.
+
+La procedura di deployment richiede un package di chaincode e specifica:
+
+* nome dello stack;
+* package del chaincode;
+* canale Fabric;
+* nome del chaincode;
+* versione del chaincode.
+
+Per la configurazione locale attuale, il canale di riferimento è `firefly`.
+
+Il chaincode non gestisce l'autenticazione WebAuthn degli utenti. L'autenticazione e l'autorizzazione applicativa vengono gestite dal backend, che costituisce il trusted gateway verso FireFly e Fabric.

@@ -52,3 +52,4 @@ infrastructure/volumes/
 *.tar.gz
 channel-artifacts/
 crypto-config/
+chaincode/sanction_contract.zip
