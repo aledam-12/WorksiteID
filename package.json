@@ -26,6 +26,7 @@
     "globals": "^17.11.0",
     "jest": "^30.4.2",
     "prettier": "^3.9.6",
+    "snarkjs": "^0.7.6",
     "ts-jest": "^29.4.12",
     "ts-node": "^10.9.2",
     "tsx": "^4.23.12",
@@ -35,6 +36,8 @@
   "dependencies": {
     "@simplewebauthn/browser": "^13.3.0",
     "@simplewebauthn/server": "^13.3.2",
+    "circomlib": "^2.0.5",
+    "circomlibjs": "^0.1.7",
     "fastify": "^5.12.1"
   }
 }
