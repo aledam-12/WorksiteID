@@ -2,206 +2,206 @@ package tests
 
 import (
 	"chaincode/domain"
+	"encoding/json"
+	"strings"
 	"testing"
 )
 
-func TestNewLicense(t *testing.T) {
-	tests := []struct {
-		name           string
-		id             string
-		credits        int
-		wantErr        bool
-		expectedStatus string
-	}{
-		{
-			name:           "crea patente attiva con crediti >= 15",
-			id:             "LIC-001",
-			credits:        20,
-			wantErr:        false,
-			expectedStatus: domain.LicenseStatusActive,
-		},
-		{
-			name:           "crea patente attiva con esattamente 15 crediti (limite)",
-			id:             "LIC-002",
-			credits:        15,
-			wantErr:        false,
-			expectedStatus: domain.LicenseStatusActive,
-		},
-		{
-			name:           "crea patente revocata con crediti < 15",
-			id:             "LIC-003",
-			credits:        14,
-			wantErr:        false,
-			expectedStatus: domain.LicenseStatusRevoked,
-		},
-		{
-			name:           "crea patente revocata con 0 crediti",
-			id:             "LIC-004",
-			credits:        0,
-			wantErr:        false,
-			expectedStatus: domain.LicenseStatusRevoked,
-		},
-		{
-			name:           "errore se ID vuoto",
-			id:             "",
-			credits:        20,
-			wantErr:        true,
-			expectedStatus: "",
-		},
-		{
-			name:           "errore se crediti negativi",
-			id:             "LIC-005",
-			credits:        -5,
-			wantErr:        true,
-			expectedStatus: "",
-		},
-	}
+func TestNewPublicLicenseState(t *testing.T) {
+	t.Run("creazione valida", func(t *testing.T) {
+		state, err := domain.NewPublicLicenseState(
+			"LIC-REF-001",
+			strings.Repeat("a", 64),
+		)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			lic, err := domain.NewLicense(tt.id, tt.credits)
-
-			if tt.wantErr {
-				if err == nil {
-					t.Fatalf("atteso errore per input (%s, %d), ma err è nil", tt.id, tt.credits)
-				}
-				if lic != nil {
-					t.Fatalf("attesa licenza nil in caso di errore, ma ottenuto: %+v", lic)
-				}
-				return
-			}
-
-			if err != nil {
-				t.Fatalf("errore inatteso: %v", err)
-			}
-			if lic == nil {
-				t.Fatal("licenza è nil")
-			}
-			if lic.ID != tt.id {
-				t.Errorf("ID atteso %s, ottenuto %s", tt.id, lic.ID)
-			}
-			if lic.Credits != tt.credits {
-				t.Errorf("Credits attesi %d, ottenuti %d", tt.credits, lic.Credits)
-			}
-			if lic.Status != tt.expectedStatus {
-				t.Errorf("Status atteso %s, ottenuto %s", tt.expectedStatus, lic.Status)
-			}
-		})
-	}
-}
-
-func TestApplyPenalty(t *testing.T) {
-	t.Run("penalità valida riduce crediti mantenendo stato attivo", func(t *testing.T) {
-		lic, err := domain.NewLicense("LIC-100", 20)
 		if err != nil {
-			t.Fatalf("creazione fallita: %v", err)
+			t.Fatalf("errore inatteso: %v", err)
 		}
 
-		err = lic.ApplyPenalty(3)
-		if err != nil {
-			t.Fatalf("ApplyPenalty ha restituito errore: %v", err)
+		if state == nil {
+			t.Fatal("stato pubblico non dovrebbe essere nil")
 		}
-		if lic.Credits != 17 {
-			t.Errorf("crediti attesi 17, ottenuti %d", lic.Credits)
+
+		if state.LicenseRef != "LIC-REF-001" {
+			t.Errorf(
+				"LicenseRef atteso 'LIC-REF-001', ottenuto '%s'",
+				state.LicenseRef,
+			)
 		}
-		if lic.Status != domain.LicenseStatusActive {
-			t.Errorf("stato atteso %s, ottenuto %s", domain.LicenseStatusActive, lic.Status)
+
+		if state.Commitment != strings.Repeat("a", 64) {
+			t.Errorf(
+				"commitment errato: %s",
+				state.Commitment,
+			)
+		}
+
+		if state.Version != 1 {
+			t.Errorf(
+				"versione iniziale attesa 1, ottenuta %d",
+				state.Version,
+			)
 		}
 	})
 
-	t.Run("penalità che porta i crediti sotto 15 revoca la patente", func(t *testing.T) {
-		lic, err := domain.NewLicense("LIC-101", 20)
-		if err != nil {
-			t.Fatalf("creazione fallita: %v", err)
+	t.Run("LicenseRef vuoto", func(t *testing.T) {
+		state, err := domain.NewPublicLicenseState(
+			"",
+			strings.Repeat("a", 64),
+		)
+
+		if err == nil {
+			t.Fatal("atteso errore per LicenseRef vuoto")
 		}
 
-		err = lic.ApplyPenalty(10)
-		if err != nil {
-			t.Fatalf("ApplyPenalty ha restituito errore: %v", err)
-		}
-		if lic.Credits != 10 {
-			t.Errorf("crediti attesi 10, ottenuti %d", lic.Credits)
-		}
-		if lic.Status != domain.LicenseStatusRevoked {
-			t.Errorf("stato atteso %s, ottenuto %s", domain.LicenseStatusRevoked, lic.Status)
+		if state != nil {
+			t.Fatalf(
+				"stato atteso nil, ottenuto %+v",
+				state,
+			)
 		}
 	})
 
-	t.Run("penalità maggiore dei crediti residui non scende sotto 0", func(t *testing.T) {
-		lic, err := domain.NewLicense("LIC-102", 5)
-		if err != nil {
-			t.Fatalf("creazione fallita: %v", err)
+	t.Run("commitment vuoto", func(t *testing.T) {
+		state, err := domain.NewPublicLicenseState(
+			"LIC-REF-001",
+			"",
+		)
+
+		if err == nil {
+			t.Fatal("atteso errore per commitment vuoto")
 		}
 
-		err = lic.ApplyPenalty(20)
-		if err != nil {
-			t.Fatalf("ApplyPenalty ha restituito errore: %v", err)
-		}
-		if lic.Credits != 0 {
-			t.Errorf("crediti attesi 0, ottenuti %d", lic.Credits)
-		}
-		if lic.Status != domain.LicenseStatusRevoked {
-			t.Errorf("stato atteso %s, ottenuto %s", domain.LicenseStatusRevoked, lic.Status)
-		}
-	})
-
-	t.Run("errore con penalità zero o negativa", func(t *testing.T) {
-		lic, err := domain.NewLicense("LIC-103", 20)
-		if err != nil {
-			t.Fatalf("creazione fallita: %v", err)
-		}
-
-		if err := lic.ApplyPenalty(0); err == nil {
-			t.Error("atteso errore per penalità = 0, ma err è nil")
-		}
-		if err := lic.ApplyPenalty(-2); err == nil {
-			t.Error("atteso errore per penalità negativa, ma err è nil")
-		}
-		// Verifica che i crediti non siano cambiati
-		if lic.Credits != 20 {
-			t.Errorf("crediti non dovrebbero cambiare dopo errore, attesi 20, ottenuti %d", lic.Credits)
+		if state != nil {
+			t.Fatalf(
+				"stato atteso nil, ottenuto %+v",
+				state,
+			)
 		}
 	})
 }
 
-func TestLicenseStatusChecks(t *testing.T) {
-	t.Run("IsActive e IsRevoked su patente attiva", func(t *testing.T) {
-		lic := &domain.License{ID: "LIC-200", Credits: 20, Status: domain.LicenseStatusActive}
-		if !lic.IsActive() {
-			t.Error("IsActive() dovrebbe essere true per patente attiva con 20 crediti")
-		}
-		if lic.IsRevoked() {
-			t.Error("IsRevoked() dovrebbe essere false per patente attiva con 20 crediti")
-		}
-	})
+func TestPublicLicenseStateSerializationContainsOnlyPublicFields(t *testing.T) {
+	state, err := domain.NewPublicLicenseState(
+		"LIC-REF-001",
+		strings.Repeat("a", 64),
+	)
+	if err != nil {
+		t.Fatalf("creazione stato fallita: %v", err)
+	}
 
-	t.Run("IsActive e IsRevoked su patente revocata", func(t *testing.T) {
-		lic := &domain.License{ID: "LIC-201", Credits: 10, Status: domain.LicenseStatusRevoked}
-		if lic.IsActive() {
-			t.Error("IsActive() dovrebbe essere false per patente revocata con 10 crediti")
-		}
-		if !lic.IsRevoked() {
-			t.Error("IsRevoked() dovrebbe essere true per patente revocata con 10 crediti")
-		}
-	})
+	raw, err := json.Marshal(state)
+	if err != nil {
+		t.Fatalf("serializzazione fallita: %v", err)
+	}
 
-	t.Run("caso limite: 15 crediti attiva", func(t *testing.T) {
-		lic := &domain.License{ID: "LIC-202", Credits: 15, Status: domain.LicenseStatusActive}
-		if !lic.IsActive() {
-			t.Error("IsActive() dovrebbe essere true per 15 crediti e status ACTIVE")
-		}
-		if lic.IsRevoked() {
-			t.Error("IsRevoked() dovrebbe essere false per 15 crediti e status ACTIVE")
-		}
-	})
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatalf("JSON non valido: %v", err)
+	}
 
-	t.Run("caso limite: 14 crediti revocata", func(t *testing.T) {
-		lic := &domain.License{ID: "LIC-203", Credits: 14, Status: domain.LicenseStatusRevoked}
-		if lic.IsActive() {
-			t.Error("IsActive() dovrebbe essere false per 14 crediti")
+	expectedFields := []string{
+		"licenseRef",
+		"commitment",
+		"version",
+	}
+
+	if len(payload) != len(expectedFields) {
+		t.Fatalf(
+			"numero campi inatteso: attesi %d, ottenuti %d: %s",
+			len(expectedFields),
+			len(payload),
+			string(raw),
+		)
+	}
+
+	for _, field := range expectedFields {
+		if _, exists := payload[field]; !exists {
+			t.Errorf(
+				"campo pubblico atteso %q assente dal JSON",
+				field,
+			)
 		}
-		if !lic.IsRevoked() {
-			t.Error("IsRevoked() dovrebbe essere true per 14 crediti e status REVOKED")
+	}
+
+	forbiddenFields := []string{
+		"licenseId",
+		"licenseID",
+		"credits",
+		"status",
+		"randomness",
+		"penalty",
+		"reason",
+		"reasonHash",
+		"inspectorId",
+		"inspectorID",
+	}
+
+	for _, field := range forbiddenFields {
+		if _, exists := payload[field]; exists {
+			t.Errorf(
+				"campo privato %q NON deve essere presente nel ledger: %s",
+				field,
+				string(raw),
+			)
 		}
-	})
+	}
+}
+
+func TestPublicLicenseStateUpdateCommitment(t *testing.T) {
+	state, err := domain.NewPublicLicenseState(
+		"LIC-REF-001",
+		strings.Repeat("a", 64),
+	)
+	if err != nil {
+		t.Fatalf("creazione stato fallita: %v", err)
+	}
+
+	newCommitment := strings.Repeat("b", 64)
+
+	if err := state.UpdateCommitment(newCommitment, 1); err != nil {
+		t.Fatalf("UpdateCommitment fallita: %v", err)
+	}
+
+	if state.Commitment != newCommitment {
+		t.Errorf(
+			"commitment atteso %s, ottenuto %s",
+			newCommitment,
+			state.Commitment,
+		)
+	}
+
+	if state.Version != 2 {
+		t.Errorf(
+			"versione attesa 2, ottenuta %d",
+			state.Version,
+		)
+	}
+}
+
+func TestPublicLicenseStateUpdateCommitmentRejectsEmptyCommitment(t *testing.T) {
+	state, err := domain.NewPublicLicenseState(
+		"LIC-REF-001",
+		strings.Repeat("a", 64),
+	)
+	if err != nil {
+		t.Fatalf("creazione stato fallita: %v", err)
+	}
+
+	err = state.UpdateCommitment("", 1)
+
+	if err == nil {
+		t.Fatal("atteso errore per nuovo commitment vuoto")
+	}
+
+	if state.Commitment != strings.Repeat("a", 64) {
+		t.Error("il commitment non dovrebbe essere modificato dopo un errore")
+	}
+
+	if state.Version != 1 {
+		t.Errorf(
+			"la versione dovrebbe rimanere 1, ottenuta %d",
+			state.Version,
+		)
+	}
 }

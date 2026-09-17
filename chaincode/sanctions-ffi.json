@@ -1,66 +1,73 @@
 {
   "name": "sanctions",
-  "version": "1.0",
-  "description": "FireFly Interface (FFI) for WorksiteID Sanctions Chaincode",
+  "version": "2.0",
+  "description": "FireFly Interface (FFI) for WorksiteID privacy-preserving sanctions chaincode",
   "methods": [
     {
       "name": "CreateLicense",
-      "description": "Crea una nuova patente a crediti sul ledger",
+      "description": "Crea lo stato pubblico iniziale di una patente utilizzando un riferimento opaco e un commitment dello stato privato",
       "params": [
         {
-          "name": "licenseID",
+          "name": "licenseRef",
           "schema": {
             "type": "string",
-            "description": "Identificativo univoco della patente"
+            "description": "Riferimento opaco e pseudonimo della patente"
           }
         },
         {
-          "name": "credits",
+          "name": "initialCommitment",
           "schema": {
-            "type": "integer",
-            "description": "Numero iniziale di crediti (es. 30)"
+            "type": "string",
+            "description": "Commitment crittografico dello stato privato iniziale della patente"
           }
         }
       ],
       "returns": []
     },
     {
-      "name": "GetLicense",
-      "description": "Recupera una patente a crediti dal ledger tramite il suo ID",
+      "name": "GetLicenseState",
+      "description": "Recupera lo stato pubblico della patente dal ledger senza esporre dati privati",
       "params": [
         {
-          "name": "licenseID",
+          "name": "licenseRef",
           "schema": {
             "type": "string",
-            "description": "Identificativo della patente da recuperare"
+            "description": "Riferimento opaco e pseudonimo della patente"
           }
         }
       ],
       "returns": [
         {
-          "name": "license",
+          "name": "licenseState",
           "schema": {
             "type": "object",
-            "description": "Stato della patente memorizzato sul ledger",
+            "description": "Stato pubblico della patente memorizzato sul ledger",
             "properties": {
-              "id": {
-                "type": "string"
-              },
-              "credits": {
-                "type": "integer"
-              },
-              "status": {
+              "licenseRef": {
                 "type": "string",
-                "enum": ["ACTIVE", "REVOKED"]
+                "description": "Riferimento opaco della patente"
+              },
+              "commitment": {
+                "type": "string",
+                "description": "Commitment crittografico dello stato privato"
+              },
+              "version": {
+                "type": "integer",
+                "description": "Versione progressiva dello stato pubblico"
               }
-            }
+            },
+            "required": [
+              "licenseRef",
+              "commitment",
+              "version"
+            ]
           }
         }
       ]
     },
     {
       "name": "IssueSanction",
-      "description": "Emette una nuova sanzione, riduce i crediti della patente e aggiorna lo stato",
+      "description": "Registra una sanzione tramite commitment e aggiorna il commitment pubblico della patente senza esporre penalty, motivazione o altri dati privati",
       "params": [
         {
           "name": "sanctionID",
@@ -70,39 +77,31 @@
           }
         },
         {
-          "name": "licenseID",
+          "name": "licenseRef",
           "schema": {
             "type": "string",
-            "description": "Identificativo della patente a cui applicare la sanzione"
+            "description": "Riferimento opaco e pseudonimo della patente"
           }
         },
         {
-          "name": "penalty",
+          "name": "sanctionCommitment",
           "schema": {
-            "type": "integer",
-            "description": "Numero di crediti da decurtare (maggiore di 0)"
+            "type": "string",
+            "description": "Commitment crittografico dei dati privati della sanzione"
           }
         },
         {
-          "name": "reason",
+          "name": "newCommitment",
           "schema": {
             "type": "string",
-            "description": "Motivazione dell'infrazione"
+            "description": "Commitment crittografico del nuovo stato privato della patente"
           }
         },
         {
-          "name": "issuedAt",
+          "name": "inspectorRef",
           "schema": {
             "type": "string",
-            "format": "date-time",
-            "description": "Timestamp ISO 8601 dell'emissione"
-          }
-        },
-        {
-          "name": "inspectorID",
-          "schema": {
-            "type": "string",
-            "description": "Identificativo dell'ispettore che emette la sanzione"
+            "description": "Riferimento pseudonimo dell'ispettore"
           }
         }
       ],
@@ -110,7 +109,7 @@
     },
     {
       "name": "GetSanction",
-      "description": "Recupera i dettagli di una sanzione memorizzata sul ledger",
+      "description": "Recupera i metadati pubblici e il commitment di una sanzione dal ledger senza esporre i dati privati",
       "params": [
         {
           "name": "sanctionID",
@@ -125,28 +124,42 @@
           "name": "sanction",
           "schema": {
             "type": "object",
-            "description": "Dettagli della sanzione",
+            "description": "Metadati pubblici della sanzione",
             "properties": {
               "id": {
-                "type": "string"
+                "type": "string",
+                "description": "Identificativo della sanzione"
               },
-              "licenseId": {
-                "type": "string"
+              "licenseRef": {
+                "type": "string",
+                "description": "Riferimento opaco della patente"
               },
-              "penalty": {
-                "type": "integer"
-              },
-              "reason": {
-                "type": "string"
+              "sanctionCommitment": {
+                "type": "string",
+                "description": "Commitment crittografico dei dati privati della sanzione"
               },
               "issuedAt": {
                 "type": "string",
-                "format": "date-time"
+                "format": "date-time",
+                "description": "Timestamp della transazione Fabric"
               },
-              "inspectorId": {
-                "type": "string"
+              "inspectorRef": {
+                "type": "string",
+                "description": "Riferimento pseudonimo dell'ispettore"
+              },
+              "version": {
+                "type": "integer",
+                "description": "Versione dello stato della patente risultante dalla sanzione"
               }
-            }
+            },
+            "required": [
+              "id",
+              "licenseRef",
+              "sanctionCommitment",
+              "issuedAt",
+              "inspectorRef",
+              "version"
+            ]
           }
         }
       ]

@@ -13,69 +13,139 @@ type SanctionsContract struct {
 	contractapi.Contract
 }
 
-// CreateLicense creates a new license
-func (s *SanctionsContract) CreateLicense(ctx contractapi.TransactionContextInterface, licenseID string, credits int) error {
-	license, err := domain.NewLicense(licenseID, credits)
+// CreateLicense inizializza lo stato pubblico della patente sul ledger.
+// Nessun dato privato della patente viene memorizzato on-chain.
+func (s *SanctionsContract) CreateLicense(
+	ctx contractapi.TransactionContextInterface,
+	licenseRef string,
+	initialCommitment string,
+) error {
+	existing, err := ctx.GetStub().GetState(licenseRef)
 	if err != nil {
 		return err
 	}
-	bytes, err := json.Marshal(license)
+
+	if existing != nil {
+		return fmt.Errorf("license %s already exists", licenseRef)
+	}
+
+	state, err := domain.NewPublicLicenseState(
+		licenseRef,
+		initialCommitment,
+	)
 	if err != nil {
 		return err
 	}
-	return ctx.GetStub().PutState(license.ID, bytes)
+
+	bytes, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+
+	return ctx.GetStub().PutState(licenseRef, bytes)
 }
 
-// GetLicense returns a license
-func (s *SanctionsContract) GetLicense(ctx contractapi.TransactionContextInterface, licenseID string) (*domain.License, error) {
-	bytes, err := ctx.GetStub().GetState(licenseID)
+// GetLicenseState restituisce esclusivamente lo stato pubblico
+// della patente presente sul ledger.
+func (s *SanctionsContract) GetLicenseState(
+	ctx contractapi.TransactionContextInterface,
+	licenseRef string,
+) (*domain.PublicLicenseState, error) {
+	bytes, err := ctx.GetStub().GetState(licenseRef)
 	if err != nil {
 		return nil, err
 	}
+
 	if bytes == nil {
-		return nil, nil
+		return nil, fmt.Errorf("license %s not found", licenseRef)
 	}
-	var license domain.License
-	err = json.Unmarshal(bytes, &license)
-	if err != nil {
+
+	var state domain.PublicLicenseState
+
+	if err := json.Unmarshal(bytes, &state); err != nil {
 		return nil, err
 	}
-	return &license, nil
+
+	return &state, nil
 }
 
-func (s *SanctionsContract) IssueSanction(ctx contractapi.TransactionContextInterface, sanctionID string, licenseID string, penalty int, reason string, issuedAt time.Time, inspectorID string) error {
-	sanction, err := domain.NewSanction(sanctionID, licenseID, penalty, reason, issuedAt, inspectorID)
+// IssueSanction registra una sanzione e aggiorna il commitment pubblico
+// della patente.
+//
+// I dati privati della sanzione, inclusi penalty e reason, non vengono
+// memorizzati sul ledger.
+//
+// La correttezza della transizione dello stato privato, ad esempio:
+//
+//	creditsNew = creditsOld - penalty
+//
+// sarà verificata successivamente tramite ZKP.
+func (s *SanctionsContract) IssueSanction(
+	ctx contractapi.TransactionContextInterface,
+	sanctionID string,
+	licenseRef string,
+	sanctionCommitment string,
+	newCommitment string,
+	inspectorRef string,
+) error {
+	existingSanction, err := ctx.GetStub().GetState(sanctionID)
 	if err != nil {
 		return err
 	}
 
-	existingSanction, err := s.GetSanction(ctx, sanction.ID)
-	if err != nil {
-		return err
-	}
 	if existingSanction != nil {
-		return fmt.Errorf("sanction %s already exists", sanction.ID)
+		return fmt.Errorf("sanction %s already exists", sanctionID)
 	}
 
-	license, err := s.GetLicense(ctx, licenseID)
-	if err != nil {
-		return err
-	}
-	if license == nil {
-		return fmt.Errorf("license %s not found", licenseID)
-	}
-
-	err = license.ApplyPenalty(penalty)
+	pubState, err := s.GetLicenseState(ctx, licenseRef)
 	if err != nil {
 		return err
 	}
 
-	licenseBytes, err := json.Marshal(license)
+	if newCommitment == "" {
+		return fmt.Errorf("new commitment cannot be empty")
+	}
+
+	if newCommitment == pubState.Commitment {
+		return fmt.Errorf("new commitment must differ from current commitment")
+	}
+
+	txTime, err := ctx.GetStub().GetTxTimestamp()
 	if err != nil {
 		return err
 	}
-	err = ctx.GetStub().PutState(license.ID, licenseBytes)
+
+	issuedAt := time.Unix(
+		txTime.Seconds,
+		int64(txTime.Nanos),
+	)
+
+	newVersion := pubState.Version + 1
+
+	sanction, err := domain.NewSanction(
+		sanctionID,
+		licenseRef,
+		sanctionCommitment,
+		issuedAt,
+		inspectorRef,
+		newVersion,
+	)
 	if err != nil {
+		return err
+	}
+
+	pubState.Commitment = newCommitment
+	pubState.Version = newVersion
+
+	licenseBytes, err := json.Marshal(pubState)
+	if err != nil {
+		return err
+	}
+
+	if err := ctx.GetStub().PutState(
+		licenseRef,
+		licenseBytes,
+	); err != nil {
 		return err
 	}
 
@@ -83,20 +153,32 @@ func (s *SanctionsContract) IssueSanction(ctx contractapi.TransactionContextInte
 	if err != nil {
 		return err
 	}
-	return ctx.GetStub().PutState(sanction.ID, sanctionBytes)
+
+	return ctx.GetStub().PutState(
+		sanctionID,
+		sanctionBytes,
+	)
 }
-func (s *SanctionsContract) GetSanction(ctx contractapi.TransactionContextInterface, sanctionID string) (*domain.Sanction, error) {
+
+// GetSanction restituisce esclusivamente i dati pubblici della sanzione.
+func (s *SanctionsContract) GetSanction(
+	ctx contractapi.TransactionContextInterface,
+	sanctionID string,
+) (*domain.Sanction, error) {
 	bytes, err := ctx.GetStub().GetState(sanctionID)
 	if err != nil {
 		return nil, err
 	}
+
 	if bytes == nil {
-		return nil, nil
+		return nil, fmt.Errorf("sanction %s not found", sanctionID)
 	}
+
 	var sanction domain.Sanction
-	err = json.Unmarshal(bytes, &sanction)
-	if err != nil {
+
+	if err := json.Unmarshal(bytes, &sanction); err != nil {
 		return nil, err
 	}
+
 	return &sanction, nil
 }
