@@ -1,127 +1,122 @@
-import { License } from "../domain/license.js";
-import { Sanction } from "../domain/sanction.js";
+import { LicenseOnChain } from "../domain/license-on-chain.js";
+import { SanctionOnChain } from "../domain/sanction-on-chain.js";
 import { FireFlyClient } from "./firefly-client.js";
 
-export interface IssueSanctionParams {
+export interface IssueSanctionOnChainParams {
     sanctionId: string;
-    licenseId: string;
-    inspectorId: string;
-    penalty: number;
-    reason: string;
-    issuedAt: Date | string;
+    licenseRef: string;
+    sanctionCommitment: string;
+    newCommitment: string;
+    inspectorRef: string;
 }
 
-export interface FireFlyLicenseResponse {
-    id: string;
-    credits: number;
-    status: string;
+export interface FireFlyLicenseStateResponse {
+    licenseRef: string;
+    commitment: string;
+    version: number;
 }
 
 export interface FireFlySanctionResponse {
     id: string;
-    licenseId: string;
-    penalty: number;
-    reason: string;
+    licenseRef: string;
+    sanctionCommitment: string;
     issuedAt: string;
-    inspectorId: string;
+    inspectorRef: string;
+    version: number;
 }
 
 export interface BlockchainService {
-    createLicense(licenseId: string, credits: number): Promise<void>;
-    getLicense(licenseId: string): Promise<License | null>;
-    issueSanction(params: IssueSanctionParams): Promise<void>;
-    getSanction(sanctionId: string): Promise<Sanction | null>;
+    createLicense(licenseRef: string, initialCommitment: string): Promise<void>;
+    getLicenseState(licenseRef: string): Promise<LicenseOnChain | null>;
+    issueSanction(params: IssueSanctionOnChainParams): Promise<void>;
+    getSanction(sanctionId: string): Promise<SanctionOnChain | null>;
 }
 
 export class BlockchainServiceImpl implements BlockchainService {
     constructor(private readonly fireflyClient: FireFlyClient) {}
 
-    async createLicense(licenseId: string, credits: number): Promise<void> {
-        if (!licenseId || licenseId.trim() === "") {
-            throw new Error("License ID must not be empty");
+    async createLicense(
+        licenseRef: string,
+        initialCommitment: string,
+    ): Promise<void> {
+        if (!licenseRef || licenseRef.trim() === "") {
+            throw new Error("License reference must not be empty");
         }
-        if (credits === undefined || credits === null || typeof credits !== "number" || Number.isNaN(credits)) {
-            throw new Error("Credits must be a valid number");
+        if (!initialCommitment || initialCommitment.trim() === "") {
+            throw new Error("Initial commitment must not be empty");
         }
 
         await this.fireflyClient.invoke("CreateLicense", {
-            licenseID: licenseId.trim(),
-            credits,
+            licenseRef: licenseRef.trim(),
+            initialCommitment: initialCommitment.trim(),
         });
     }
 
-    async getLicense(licenseId: string): Promise<License | null> {
-        if (!licenseId || licenseId.trim() === "") {
-            throw new Error("License ID must not be empty");
+    async getLicenseState(licenseRef: string): Promise<LicenseOnChain | null> {
+        if (!licenseRef || licenseRef.trim() === "") {
+            throw new Error("License reference must not be empty");
         }
 
-        const response = await this.fireflyClient.query<FireFlyLicenseResponse | null>(
-            "GetLicense",
-            { licenseID: licenseId.trim() },
-        );
+        const response =
+            await this.fireflyClient.query<FireFlyLicenseStateResponse | null>(
+                "GetLicenseState",
+                { licenseRef: licenseRef.trim() },
+            );
 
-        if (!response || !response.id) {
+        if (!response || !response.licenseRef) {
             return null;
         }
 
-        return License.fromLedger(response);
+        return LicenseOnChain.fromLedger(response);
     }
 
-    async issueSanction(params: IssueSanctionParams): Promise<void> {
+    async issueSanction(params: IssueSanctionOnChainParams): Promise<void> {
+        if (!params || typeof params !== "object") {
+            throw new Error("Sanction parameters must be an object");
+        }
         if (!params.sanctionId || params.sanctionId.trim() === "") {
             throw new Error("Sanction ID must not be empty");
         }
-        if (!params.licenseId || params.licenseId.trim() === "") {
-            throw new Error("License ID must not be empty");
+        if (!params.licenseRef || params.licenseRef.trim() === "") {
+            throw new Error("License reference must not be empty");
         }
-        if (!params.inspectorId || params.inspectorId.trim() === "") {
-            throw new Error("Inspector ID must not be empty");
+        if (
+            !params.sanctionCommitment ||
+            params.sanctionCommitment.trim() === ""
+        ) {
+            throw new Error("Sanction commitment must not be empty");
         }
-
-        let date: Date;
-        if (params.issuedAt instanceof Date) {
-            date = params.issuedAt;
-        } else if (typeof params.issuedAt === "string" && params.issuedAt.trim() !== "") {
-            date = new Date(params.issuedAt);
-        } else {
-            throw new Error("issuedAt must be a valid Date or ISO date string");
+        if (!params.newCommitment || params.newCommitment.trim() === "") {
+            throw new Error("New commitment must not be empty");
         }
-
-        if (Number.isNaN(date.getTime())) {
-            throw new Error("issuedAt must be a valid Date");
+        if (!params.inspectorRef || params.inspectorRef.trim() === "") {
+            throw new Error("Inspector reference must not be empty");
         }
 
         await this.fireflyClient.invoke("IssueSanction", {
             sanctionID: params.sanctionId.trim(),
-            licenseID: params.licenseId.trim(),
-            inspectorID: params.inspectorId.trim(),
-            penalty: params.penalty,
-            reason: params.reason ?? "",
-            issuedAt: date.toISOString(),
+            licenseRef: params.licenseRef.trim(),
+            sanctionCommitment: params.sanctionCommitment.trim(),
+            newCommitment: params.newCommitment.trim(),
+            inspectorRef: params.inspectorRef.trim(),
         });
     }
 
-    async getSanction(sanctionId: string): Promise<Sanction | null> {
+    async getSanction(sanctionId: string): Promise<SanctionOnChain | null> {
         if (!sanctionId || sanctionId.trim() === "") {
             throw new Error("Sanction ID must not be empty");
         }
 
-        const response = await this.fireflyClient.query<FireFlySanctionResponse | null>(
-            "GetSanction",
-            { sanctionID: sanctionId.trim() },
-        );
+        const response =
+            await this.fireflyClient.query<FireFlySanctionResponse | null>(
+                "GetSanction",
+                { sanctionID: sanctionId.trim() },
+            );
 
         if (!response || !response.id) {
             return null;
         }
 
-        return new Sanction({
-            id: response.id,
-            licenseId: response.licenseId,
-            penalty: response.penalty,
-            reason: response.reason,
-            issuedAt: new Date(response.issuedAt),
-            inspectorId: response.inspectorId,
-        });
+        return SanctionOnChain.fromLedger(response);
     }
 }

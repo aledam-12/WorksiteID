@@ -1,8 +1,18 @@
-export class PublicLicenseState {
+export interface LicenseOnChainData {
+    licenseRef: string;
+    commitment: string;
+    version: number;
+}
+
+export class LicenseOnChain {
+    public readonly licenseRef: string;
+    public readonly commitment: string;
+    public readonly version: number;
+
     constructor(
-        public readonly licenseRef: string,
-        public readonly commitment: string,
-        public readonly version: number,
+        licenseRef: string,
+        commitment: string,
+        version: number,
     ) {
         if (
             licenseRef === null ||
@@ -33,5 +43,20 @@ export class PublicLicenseState {
                 "Version must be an integer greater than or equal to 1",
             );
         }
+
+        this.licenseRef = licenseRef.trim();
+        this.commitment = commitment.trim();
+        this.version = version;
+    }
+
+    static fromLedger(data: LicenseOnChainData): LicenseOnChain {
+        if (!data || typeof data !== "object") {
+            throw new Error("Ledger data must be an object");
+        }
+        return new LicenseOnChain(
+            data.licenseRef,
+            data.commitment,
+            data.version,
+        );
     }
 }
