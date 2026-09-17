@@ -4,266 +4,214 @@
 
 Il dominio di WorksiteID rappresenta la patente a crediti associata a un lavoratore e le sanzioni che ne modificano lo stato.
 
-Il modello è indipendente dalle tecnologie utilizzate per autenticazione, persistenza e blockchain.
+Il sistema adotta un approccio **Privacy by Design**: i dati sensibili del lavoratore (crediti effettivi, motivazioni e penalità delle sanzioni, anagrafica) risiedono esclusivamente nel dominio applicativo, mentre la blockchain (Hyperledger Fabric) ospita unicamente riferimenti opachi e commitment crittografici dello stato.
 
-## Entità
+---
+
+## Entità del Dominio Privato (Off-Chain / Wallet)
 
 ### Worker
 
 Rappresenta il lavoratore a cui è associata una patente.
 
-* `id` — identificativo univoco del lavoratore
-* `name` — nome del lavoratore
-* `surname` — cognome del lavoratore
-* `cf` — codice fiscale
-* `company` — impresa di appartenenza
-* `licenseId` — identificativo della patente associata
+* `id` — identificativo univoco del lavoratore;
+* `name` — nome del lavoratore;
+* `surname` — cognome del lavoratore;
+* `cf` — codice fiscale;
+* `company` — impresa di appartenenza;
+* `licenseId` — identificativo della patente associata.
+
+I dati anagrafici del Worker appartengono al dominio applicativo e non vengono mai memorizzati sulla blockchain.
 
 ### Inspector
 
 Rappresenta l'ispettore che opera nel sistema e che può emettere sanzioni.
 
-* `id` — identificativo univoco dell'ispettore
+* `id` — identificativo univoco dell'ispettore.
 
-L'Inspector rappresenta un'identità applicativa.
+L'autenticazione dell'Inspector viene gestita tramite WebAuthn e il ruolo viene verificato dal backend prima di qualsiasi operazione sul ledger.
 
-L'autenticazione dell'Inspector viene gestita dal sistema comune WebAuthn e non fa parte del modello di dominio.
+### Patente e PrivateLicenseState
 
-### Patente
+Rappresenta la patente a crediti del lavoratore e il suo stato privato:
 
-Rappresenta la patente a crediti del lavoratore.
+* `licenseId` — identificativo univoco della patente;
+* `credits` — numero corrente di crediti ($\ge 0$);
+* `status` — stato corrente della patente (`ACTIVE` oppure `REVOKED`);
+* `randomness` — valore crittografico casuale a 256 bit (CSPRNG) generato per ciascuna versione dello stato;
+* `version` — numero progressivo di versione ($\ge 1$).
 
-* `id` — identificativo univoco della patente
-* `credits` — numero corrente di crediti
-* `status` — stato corrente della patente
+Una nuova patente viene inizializzata con:
+* `30` crediti;
+* stato `ACTIVE`;
+* `version = 1`;
+* randomness generata tramite `CommitmentService`.
 
-La patente può avere i seguenti stati:
+Il `PrivateLicenseState` è custodito localmente nel wallet del lavoratore e non viene mai pubblicato sul ledger.
 
-* `ACTIVE`
-* `REVOKED`
+### Sanzione (Dati Privati)
 
-Una nuova patente viene inizializzata con `30` crediti e stato `ACTIVE`.
+Rappresenta la penalizzazione applicata alla patente nel dominio applicativo:
 
-Il modello della patente viene utilizzato anche dal chaincode come rappresentazione dello stato mantenuto sul ledger.
+* `id` — identificativo univoco della sanzione;
+* `penalty` — numero intero di crediti da sottrarre ($> 0$);
+* `licenseId` — identificativo della patente sanzionata;
+* `reason` — motivazione dettagliata della sanzione;
+* `issuedAt` — momento di emissione;
+* `inspectorId` — identificativo dell'ispettore che ha emesso la sanzione.
 
-### PublicLicenseState
+La motivazione e l'entità della penalità non vengono salvate sul ledger, proteggendo la privacy del lavoratore e dell'impresa.
 
-Rappresenta lo stato pubblico della patente destinato al ledger blockchain, separato dal modello privato (`PrivateLicenseState`) conservato nel wallet del lavoratore.
+---
 
-* `licenseRef` — identificatore opaco/pseudonimo della patente sul ledger (distinto dal `licenseId` reale);
-* `commitment` — commitment crittografico dello stato privato;
-* `version` — numero di versione (intero positivo $\ge 1$) per il tracciamento delle transizioni di stato.
+## Entità del Dominio On-Chain (Blockchain / Ledger)
 
-Sul ledger non vengono rappresentati i dati privati (`licenseId` reale, `credits`, `status`, `randomness`), preservando la riservatezza delle informazioni del lavoratore.
+Le entità on-chain sono quelle registrate e consultate tramite il chaincode Hyperledger Fabric e l'interfaccia FireFly (`sanctions-ffi.json`):
 
-### Sanzione
+### LicenseOnChain (Stato Pubblico Patente)
 
-Rappresenta una penalizzazione applicata alla patente.
+Rappresenta lo stato pubblico e verificabile della patente memorizzato sul ledger:
 
-* `id` — identificativo della sanzione
-* `penalty` — numero di crediti da sottrarre
-* `licenseId` — identificativo della patente a cui è associata
-* `reason` — motivazione della sanzione
-* `issuedAt` — momento di emissione
-* `inspectorId` — identificativo dell'ispettore che ha emesso la sanzione
+* `licenseRef` — identificativo opaco e pseudonimo della patente (distinto dal `licenseId` reale);
+* `commitment` — commitment crittografico SHA-256 calcolato sullo stato privato (`PrivateLicenseState`) e sulla relativa randomness;
+* `version` — numero sequenziale di versione della patente ($\ge 1$).
 
-Non vengono definite tipologie specifiche di sanzione in questa versione del progetto.
+Sul ledger non è possibile evincere il saldo crediti o lo stato della patente, prevenendo discriminazioni e profilazioni.
 
-Ogni sanzione è associata alla patente a cui viene applicata e all'Inspector che l'ha emessa.
+### SanctionOnChain (Metadati Pubblici Sanzione)
 
-Il modello della sanzione viene utilizzato anche dal chaincode come rappresentazione dei dati salvati sul ledger.
+Rappresenta i metadati pubblici della sanzione registrati sul ledger:
 
-## Relazioni
+* `id` — identificativo univoco della sanzione;
+* `licenseRef` — riferimento opaco della patente a cui è applicata;
+* `sanctionCommitment` — commitment crittografico calcolato sui dati privati della sanzione;
+* `issuedAt` — timestamp certo generato direttamente dal consenso Fabric al momento della transazione;
+* `inspectorRef` — identificativo pseudonimo dell'ispettore;
+* `version` — versione della patente generata a seguito dell'applicazione della sanzione.
+
+---
+
+## Relazioni tra i Modelli
 
 ```mermaid
 classDiagram
+    direction TB
 
-    Worker "1" --> "1" Patente : possiede
-    Patente "1" --> "0..*" Sanzione : riceve
-    Inspector "1" --> "0..*" Sanzione : emette
+    package "Dominio Privato (Off-Chain / Wallet)" {
+        class Worker {
+            id: string
+            name: string
+            surname: string
+            cf: string
+            company: string
+            licenseId: string
+        }
 
-    class Worker {
-        id
-        name
-        surname
-        cf
-        company
-        licenseId
+        class Inspector {
+            id: string
+        }
+
+        class PrivateLicenseState {
+            licenseId: string
+            credits: number
+            status: LicenseStatusEnum
+            randomness: string
+            version: number
+            computeCommitment() string
+        }
+
+        class Sanction {
+            id: string
+            penalty: number
+            licenseId: string
+            reason: string
+            issuedAt: Date
+            inspectorId: string
+        }
     }
 
-    class Inspector {
-        id
+    package "Dominio Pubblico (On-Chain / Ledger)" {
+        class LicenseOnChain {
+            licenseRef: string
+            commitment: string
+            version: number
+        }
+
+        class SanctionOnChain {
+            id: string
+            licenseRef: string
+            sanctionCommitment: string
+            issuedAt: Date
+            inspectorRef: string
+            version: number
+        }
     }
 
-    class Patente {
-        id
-        credits
-        status
-    }
-
-    class Sanzione {
-        id
-        penalty
-        licenseId
-        reason
-        issuedAt
-        inspectorId
-    }
+    Worker "1" --> "1" PrivateLicenseState : possiede nel wallet
+    PrivateLicenseState ..> LicenseOnChain : genera commitment
+    Inspector "1" --> "0..*" Sanction : emette
+    Sanction ..> SanctionOnChain : genera sanctionCommitment
+    LicenseOnChain "1" --> "0..*" SanctionOnChain : traccia transizioni
 ```
 
-Ogni lavoratore possiede una patente e una patente può avere zero o più sanzioni.
+---
 
-I dati anagrafici del Worker appartengono al dominio applicativo e non implicano che vengano memorizzati sulla blockchain o inclusi nei dati utilizzati per la generazione dei commitment.
+## Regole di Dominio
 
-## Regole di dominio
+### Crediti Iniziali e Soglie
 
-### Crediti iniziali
+1. **Inizializzazione**: ogni nuova patente nasce con **30 crediti**, stato **`ACTIVE`** e **`version = 1`**.
+2. **Soglia di revoca**:
+   * $\text{credits} \ge 15 \implies \text{ACTIVE}$;
+   * $\text{credits} < 15 \implies \text{REVOKED}$.
+3. **Irreversibilità**: una patente nello stato `REVOKED` non può tornare ad `ACTIVE`. Non sono previsti reintegri crediti nella presente versione.
 
-Ogni nuova patente viene inizializzata con:
+### Applicazione di una Sanzione e Transizione di Stato
 
-* `30` crediti;
-* stato `ACTIVE`.
+1. **Penalità valida**: una sanzione deve specificare una penalità intera strettamente maggiore di zero ($\text{penalty} > 0$).
+2. **Non negatività**: se la penalità supera i crediti residui, i crediti vengono azzerati ($\text{credits}_{\text{new}} = \max(0, \text{credits}_{\text{old}} - \text{penalty})$).
+3. **Aggiornamento dello stato**: se $\text{credits}_{\text{new}} < 15$, lo stato diventa `REVOKED`.
+4. **Incremento di versione**: ogni sanzione produce un nuovo stato privato con $\text{version}_{\text{new}} = \text{version}_{\text{old}} + 1$ e una nuova randomness crittografica $R_{\text{new}}$.
+5. **Aggiornamento on-chain**: sul ledger viene registrato il nuovo commitment $C_{\text{new}}$ e la sanzione $S_{\text{on-chain}}$ con la medesima versione.
 
-### Validazione della patente
+---
 
-Una patente deve rispettare i seguenti vincoli:
+## Schema di Commitment dello Stato
 
-* `id` non può essere vuoto;
-* `credits` non può essere negativo;
-* `status` deve essere `ACTIVE` oppure `REVOKED`.
+Il backend implementa uno schema di commitment crittografico conforme alle proprietà di **Hiding** (riservatezza) e **Binding** (non ripudiabilità):
 
-Quando una patente viene creata con meno di `15` crediti, viene inizializzata direttamente come `REVOKED`.
+### Formula del Commitment
 
-### Applicazione di una sanzione
+$$C = \text{SHA-256}(\text{canonicalize}(\{ \text{state}: S, \text{randomness}: R \}))$$
 
-L'applicazione di una sanzione riduce il numero di crediti della patente del valore indicato da `penalty`.
+* **Stato canonico ($S$)**: per la patente include `{ licenseId, credits, status, version }`.
+* **Randomness ($R$)**: stringa esadecimale generata da 32 byte casuali crittograficamente sicuri (CSPRNG).
+* **Canonicalizzazione**: ordinamento ricorsivo delle chiavi dell'oggetto prima della serializzazione JSON per garantire l'assoluta riproducibilità dell'hashing.
 
-Una sanzione deve avere una penalizzazione maggiore di zero.
+### Catena di Commitment ($C_1 \to C_2 \to \dots$)
 
-I crediti non possono diventare negativi.
+Ogni aggiornamento della patente produce un nuovo commitment sul ledger:
+* Stato iniziale (versione 1): $C_1 = \text{Commitment}(S_1, R_1)$
+* Prima sanzione (versione 2): $C_2 = \text{Commitment}(S_2, R_2)$
+* Il chaincode garantisce l'avanzamento sequenziale e che $C_{n+1} \ne C_n$.
 
-Se la penalizzazione supera i crediti disponibili, il valore viene portato a `0`.
+---
 
-L'applicazione della sanzione aggiorna lo stato della patente quando necessario e viene registrata nello storico della patente tramite la persistenza della sanzione sul ledger.
+## Verifica al Varco (ZKP)
 
-### Revoca
+Al momento dell'accesso al cantiere:
+1. Il Worker non rivela il saldo crediti o le sanzioni ricevute.
+2. Tramite circuito ZKP (Issue 12), il Worker genera una prova attestante che:
+   * conosce uno stato privato $(S, R)$ tale che $\text{Commitment}(S, R) = C_{\text{corrente}}$;
+   * $C_{\text{corrente}}$ corrisponde all'ultimo commitment registrato sul ledger per la sua patente;
+   * i crediti associati a $S$ soddisfano la condizione $\text{credits} \ge 15$ (patente valida/attiva).
+3. Il Verifier verifica la prova e restituisce l'esito:
+   * **`PASS`** — accesso consentito;
+   * **`NOT_PASS`** — accesso negato.
 
-Quando i crediti diventano inferiori a `15`, la patente passa allo stato `REVOKED`.
+---
 
-La soglia è quindi:
+## WebAuthn e Wallet Locale
 
-* `credits >= 15` → `ACTIVE`
-* `credits < 15` → `REVOKED`
-
-Una patente `REVOKED` non può tornare `ACTIVE` nella versione attuale del progetto.
-
-Non vengono implementati meccanismi di recupero o reintegro dei crediti.
-
-### Sanzione
-
-Una sanzione deve rispettare i seguenti vincoli:
-
-* `id` non può essere vuoto;
-* `licenseId` non può essere vuoto;
-* `penalty` deve essere maggiore di `0`;
-* `reason` non può essere vuota;
-* `issuedAt` deve essere valorizzato;
-* `inspectorId` non può essere vuoto.
-
-Il chaincode impedisce inoltre la registrazione di una sanzione con un `id` già presente sul ledger.
-
-## Stato della patente
-
-Gli stati possibili sono:
-
-* `ACTIVE`
-* `REVOKED`
-
-Lo stato rappresenta esclusivamente la condizione corrente della patente.
-
-Il risultato della futura verifica al varco è invece un concetto distinto:
-
-* `PASS`
-* `NOT_PASS`
-
-`PASS` e `NOT_PASS` non sono quindi stati della patente.
-
-## Verifica al varco
-
-La verifica al varco sarà implementata nelle issue successive.
-
-Il Worker potrà fornire una prova ZKP attraverso una stringa che verrà inviata a un endpoint di verifica.
-
-L'endpoint restituirà un esito:
-
-* `PASS` — la verifica è stata superata;
-* `NOT_PASS` — la verifica non è stata superata.
-
-La generazione dei commitment e delle ZKP non fa parte del modello di dominio attualmente implementato.
-
-## Credenziali WebAuthn
-
-Una credenziale WebAuthn rappresenta la credenziale utilizzata da un Worker o da un Inspector per autenticarsi tramite passkey.
-
-Una credenziale contiene:
-
-* `id` — identificativo univoco della credenziale;
-* `userId` — identificativo dell'utente a cui appartiene;
-* `userType` — tipo di utente (`WORKER` o `INSPECTOR`);
-* `publicKey` — chiave pubblica associata alla credenziale;
-* `counter` — contatore utilizzato per il controllo delle autenticazioni.
-
-Ogni utente può avere una sola credenziale WebAuthn nella versione attuale del progetto.
-
-Il `counter` viene aggiornato durante un'autenticazione riuscita e non può diminuire.
-
-Le credenziali WebAuthn sono utilizzate esclusivamente per l'autenticazione dell'identità applicativa e non rappresentano lo stato della patente a crediti.
-
-## Autenticazione WebAuthn
-
-L'autenticazione tramite WebAuthn è composta da due fasi.
-
-### Registrazione
-
-La registrazione di una credenziale segue il seguente flusso:
-
-1. verifica dell'esistenza dell'utente;
-2. verifica dell'assenza di una credenziale già registrata;
-3. generazione delle `RegistrationOptions`;
-4. generazione e memorizzazione del challenge;
-5. ricezione della risposta WebAuthn;
-6. verifica della risposta;
-7. creazione e persistenza della credenziale;
-8. eliminazione del challenge.
-
-### Autenticazione
-
-L'autenticazione segue il seguente flusso:
-
-1. verifica dell'esistenza dell'utente;
-2. recupero della credenziale WebAuthn;
-3. generazione delle `AuthenticationOptions`;
-4. generazione e memorizzazione del challenge;
-5. ricezione della risposta WebAuthn;
-6. verifica della risposta;
-7. aggiornamento del counter della credenziale;
-8. eliminazione del challenge.
-
-Un challenge non può essere riutilizzato dopo il completamento della relativa operazione.
-
-## Wallet
-
-Il Wallet rappresenta il contenitore locale dell'identità dell'utente sul dispositivo o client.
-
-### Struttura
-
-Un wallet è identificato da:
-
-* `userId` — identificativo univoco dell'utente associato;
-* `userType` — tipologia di utente (`WORKER` o `INSPECTOR`);
-* `licenseState` — presente esclusivamente per i wallet di tipo `WORKER`, rappresenta il `PrivateLicenseState` contenente i dati privati della patente necessari per il commitment dello stato.
-
-### Proprietà e vincoli architetturali
-
-* **Persistito localmente**: il wallet viene salvato e gestito localmente sul dispositivo dell'utente tramite un repository di storage locale (`LocalWalletRepository`).
-* **Non contiene credenziali WebAuthn**: il wallet non include chiavi crittografiche o credenziali WebAuthn; queste ultime sono gestite dagli authenticator del dispositivo e persistite separatamente tramite il `CredentialRepository`.
+* **WebAuthn**: utilizzato unicamente per autenticare le identità applicative (Worker e Inspector) tramite passkey. Le credenziali contengono `publicKey` e `counter` e non memorizzano crediti o commitment.
+* **Wallet**: contenitore locale persistito sul dispositivo del lavoratore. Per gli utenti di tipo `WORKER`, custodisce il `PrivateLicenseState` per consentire la generazione delle prove e il calcolo dei commitment.

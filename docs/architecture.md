@@ -1,6 +1,6 @@
 # Architettura
 
-WorksiteID è organizzato in moduli separati, ognuno con una responsabilità specifica.
+WorksiteID è organizzato in moduli separati, ognuno con una responsabilità specifica, secondo i principi di **Privacy by Design** e **Separazione dei Domini** (privato off-chain vs pubblico on-chain).
 
 ## Backend
 
@@ -10,26 +10,27 @@ Il backend è sviluppato in TypeScript con Fastify.
 
 Si occupa principalmente di:
 
-* gestione delle API;
-* validazione degli input;
-* gestione della logica applicativa;
-* autenticazione e gestione delle sessioni utente;
-* coordinamento delle operazioni blockchain;
-* coordinamento delle operazioni relative alle ZKP.
+* gestione delle API e validazione degli input;
+* gestione della logica applicativa e del dominio privato (`PrivateLicenseState`, `Sanction`);
+* autenticazione e gestione delle sessioni utente tramite WebAuthn;
+* gestione del wallet locale dell'utente (`WalletService`, `WalletRepository`);
+* calcolo e verifica dei commitment crittografici dello stato (`CommitmentService`);
+* coordinamento delle operazioni blockchain verso FireFly (`BlockchainService`);
+* coordinamento delle operazioni relative alle ZKP (generazione prove e verifica).
 
-Il backend non accede direttamente a Hyperledger Fabric, ma utilizza FireFly.
+Il backend non accede direttamente a Hyperledger Fabric, ma utilizza FireFly come intermediario.
 
 ## Frontend
 
-Il frontend fornisce l'interfaccia per gli utenti del sistema.
+Il frontend fornisce l'interfaccia per gli utenti del sistema (Worker e Inspector).
 
-Comunica esclusivamente con il backend tramite API e non interagisce direttamente con la blockchain.
+Comunica esclusivamente con il backend tramite API REST e non interagisce direttamente con la blockchain.
 
 ## FireFly
 
 FireFly viene utilizzato come livello di integrazione con la blockchain.
 
-Il suo utilizzo permette al backend di rimanere indipendente dai dettagli specifici di Hyperledger Fabric.
+Il suo utilizzo permette al backend di rimanere indipendente dai dettagli specifici di Hyperledger Fabric, esponendo una REST API generata automaticamente a partire dall'interfaccia FFI (`sanctions-ffi.json`).
 
 La configurazione e la gestione dell'infrastruttura Fabric rimangono quindi separate dalla logica applicativa.
 
@@ -37,34 +38,37 @@ La configurazione e la gestione dell'infrastruttura Fabric rimangono quindi sepa
 
 Hyperledger Fabric costituisce l'infrastruttura blockchain del sistema.
 
-Fornisce il ledger e l'esecuzione del chaincode.
+Fornisce il distributed ledger immutabile e l'ambiente di esecuzione del chaincode.
 
-Le funzionalità di autenticazione degli utenti applicativi non sono affidate a Fabric: Worker e Inspector vengono autenticati dal backend attraverso il sistema comune definito nella #8.
+Le funzionalità di autenticazione degli utenti applicativi non sono affidate a Fabric: Worker e Inspector vengono autenticati dal backend attraverso il sistema comune WebAuthn.
 
-Fabric può utilizzare identità tecniche proprie dell'infrastruttura per consentire a FireFly e al backend di interagire con la rete, ma tali identità non rappresentano le identità applicative degli utenti.
+Fabric utilizza identità tecniche proprie dell'infrastruttura (organizzazioni, peer, orderer) per consentire a FireFly e al backend di interagire con la rete, ma tali identità non rappresentano le identità applicative degli utenti.
 
 ## Chaincode
 
 Il chaincode contiene le operazioni che devono essere eseguite e verificate sulla blockchain.
 
-È sviluppato in Go.
+È sviluppato in Go e adotta un'architettura **Privacy-Preserving**: nessun dato privato della patente (`credits`, `status`, `randomness`, anagrafica) o della sanzione (`penalty`, `reason`, riferimenti personali) viene mai memorizzato sul ledger.
 
-Contiene principalmente:
+Sul ledger risiedono esclusivamente:
 
-* il modello on-chain della patente;
-* il modello on-chain della sanzione;
-* le regole relative all'applicazione delle penalità;
-* l'aggiornamento dei crediti della patente;
-* la gestione dello stato `ACTIVE` / `REVOKED`;
-* la persistenza della patente e delle sanzioni sul ledger.
-
-Il chaincode mantiene le regole che devono essere garantite a livello blockchain e non contiene la logica di autenticazione WebAuthn.
+* **Stato pubblico della patente (`LicenseOnChain`)**:
+  * `licenseRef` — identificativo opaco e pseudonimo della patente;
+  * `commitment` — digest crittografico dello stato privato calcolato dal backend;
+  * `version` — numero sequenziale di versione ($\ge 1$).
+* **Metadati pubblici della sanzione (`SanctionOnChain`)**:
+  * `id` — identificativo univoco della sanzione;
+  * `licenseRef` — riferimento opaco della patente a cui è applicata;
+  * `sanctionCommitment` — digest crittografico dei dati privati della sanzione;
+  * `issuedAt` — timestamp certo generato direttamente dalla transazione Fabric (`ctx.GetStub().GetTxTimestamp()`);
+  * `inspectorRef` — identificativo pseudonimo dell'ispettore;
+  * `version` — versione della patente risultante dall'emissione della sanzione.
 
 ## Autenticazione e autorizzazione
 
-L'autenticazione degli utenti è gestita dal backend attraverso il sistema comune definito nella #8.
+L'autenticazione degli utenti è gestita dal backend attraverso il sistema comune WebAuthn/Passkey.
 
-Worker e Inspector utilizzano lo stesso meccanismo di autenticazione WebAuthn. Il tipo di utente viene identificato tramite `userType`.
+Worker e Inspector utilizzano lo stesso meccanismo di autenticazione. Il tipo di utente viene identificato tramite `userType`.
 
 Il flusso applicativo è:
 
@@ -90,76 +94,77 @@ Worker / Inspector
     Chaincode
 ```
 
-Il backend agisce quindi come **trusted gateway** verso la blockchain.
+Il backend agisce come **trusted gateway** verso la blockchain:
+* per le operazioni che richiedono un Inspector, verifica che la sessione appartenga a un utente con `userType = INSPECTOR`;
+* l'identificativo dell'Inspector per l'operazione viene ricavato dal contesto autenticato e non da parametri client arbitrari.
 
-Per le operazioni che richiedono un Inspector, il backend verifica che la sessione autenticata appartenga a un utente con `userType = INSPECTOR`.
+## Flusso di emissione sanzione
 
-L'identificativo dell'Inspector utilizzato per l'operazione viene ricavato dal contesto autenticato e non viene considerato attendibile se fornito arbitrariamente dal client.
-
-Il chaincode riceve quindi le richieste provenienti dal backend attraverso il normale flusso FireFly/Fabric.
-
-In questa versione del progetto Fabric non gestisce:
-
-* login degli utenti;
-* passkey o WebAuthn;
-* sessioni applicative;
-* JWT;
-* identità applicative Worker/Inspector tramite MSP.
-
-Il bypass diretto del chaincode da parte di utenti non autorizzati non rientra nel normale threat model applicativo: il backend costituisce il punto di ingresso autorizzato alle operazioni blockchain.
-
-## Chaincode delle sanzioni
-
-Il chaincode delle sanzioni implementa le operazioni relative alla patente a crediti e alle sanzioni.
-
-L'operazione principale è l'emissione di una sanzione.
-
-Il flusso è:
+L'emissione di una sanzione coinvolge sia il dominio privato custodito nel wallet, sia il calcolo dei commitment, sia l'ancoraggio immutabile sul ledger:
 
 ```text
 Inspector autenticato
         |
         v
-      Backend
+     Backend
         |
-        | IssueSanction
+        +--> 1. Recupera lo stato privato corrente della patente (PrivateLicenseState)
+        |
+        +--> 2. Applica la penalità nel dominio privato:
+        |       creditsNew = max(0, creditsOld - penalty)
+        |       statusNew  = creditsNew >= 15 ? ACTIVE : REVOKED
+        |       versionNew = versionOld + 1
+        |
+        +--> 3. Genera nuova randomness CSPRNG crittograficamente sicura (256 bit)
+        |
+        +--> 4. Calcola i commitment crittografici tramite CommitmentService:
+        |       newCommitment      = SHA-256(canonicalize({ stateNew, randomnessNew }))
+        |       sanctionCommitment = SHA-256(canonicalize({ sanctionPrivateData, sanctionRandomness }))
+        |
+        | 5. Invocazione IssueSanction(sanctionID, licenseRef, sanctionCommitment, newCommitment, inspectorRef)
+        v
+     FireFly
+        |
         v
     Chaincode
         |
-        +--> valida la sanzione
-        |
-        +--> verifica la patente
-        |
-        +--> applica la penalità
-        |
-        +--> aggiorna i crediti
-        |
-        +--> aggiorna lo stato
-        |
-        +--> salva la patente
-        |
-        +--> salva la sanzione
+        +--> valida che licenseRef esista sul ledger
+        +--> valida che sanctionID non esista già
+        +--> verifica che newCommitment != currentCommitment
+        +--> incrementa la versione on-chain (pubState.Version + 1)
+        +--> aggiorna LicenseOnChain con (newCommitment, newVersion)
+        +--> registra SanctionOnChain con timestamp transazione Fabric e newVersion
 ```
 
-Le regole relative ai crediti sono applicate dal dominio utilizzato dal chaincode:
+La correttezza matematica della transizione di stato tra crediti precedenti e crediti aggiornati ($credits_{new} = credits_{old} - penalty$) non è calcolata in chiaro dal chaincode, ma viene garantita e verificata off-chain tramite prove a conoscenza zero (**ZKP**).
 
-* una penalità deve essere maggiore di `0`;
-* i crediti non possono diventare negativi;
-* se la penalità supera i crediti disponibili, i crediti vengono portati a `0`;
-* quando i crediti diventano inferiori a `15`, la patente viene impostata a `REVOKED`;
-* una patente `REVOKED` non viene riportata a `ACTIVE`.
+## Schema di Commitment dello Stato
 
-Il chaincode verifica inoltre che la patente associata alla sanzione esista e impedisce la registrazione di una seconda sanzione con lo stesso identificativo.
+Il sistema adotta uno schema di commitment crittografico per garantire la riservatezza e l'integrità dei dati del lavoratore:
 
-## ZKP
+### Algoritmo di Commitment
 
-Le funzionalità Zero-Knowledge Proof sono mantenute separate dal resto dell'applicazione.
+Dato uno stato privato $S$ e un valore di randomness crittografica $R$:
 
-I circuiti definiscono le relazioni matematiche utilizzate nelle prove, mentre il backend ne coordina generazione e verifica.
+$$C = \text{SHA-256}(\text{canonicalize}(\{ \text{state}: S, \text{randomness}: R \}))$$
 
-Le ZKP vengono utilizzate per dimostrare determinate proprietà senza rivelare direttamente i dati sottostanti.
+1. **Randomness CSPRNG**: generata mediante `node:crypto.randomBytes(32)` (256 bit di entropia crittografica), garantendo l'imprevedibilità e la resistenza a dizionari o brute-force.
+2. **Canonicalizzazione Deterministica**: prima dell'hashing, l'oggetto contenente stato e randomness viene serializzato tramite canonicalizzazione deterministica (ordinamento ricorsivo delle chiavi, serializzazione uniforme di stringhe, numeri e booleani) per evitare discrepanze tra runtime diversi.
+3. **Digest SHA-256**: produce una stringa esadecimale a 64 caratteri lowercase.
 
-Commitment e ZKP saranno introdotti nelle issue successive e non fanno parte del chaincode delle sanzioni.
+### Proprietà di Sicurezza
+
+* **Hiding**: è computazionalmente impossibile dedurre $S$ (crediti, stato, ID reale) osservando esclusivamente il commitment $C$ on-chain, grazie all'elevata entropia della randomness $R$.
+* **Binding**: è computazionalmente impossibile trovare una coppia $(S', R') \ne (S, R)$ tale per cui $\text{Commitment}(S', R') = C$. Una volta pubblicato $C$ sul ledger, il lavoratore o l'ispettore non possono alterare a posteriori i dati a cui si riferisce.
+* **Protezione Timing Attacks**: la verifica dei commitment nel backend avviene tramite `timingSafeEqual` a tempo costante.
+
+## ZKP (Zero-Knowledge Proofs)
+
+Le funzionalità Zero-Knowledge Proof consentono la verifica al varco e la verifica delle sanzioni senza rivelare i dati privati:
+
+* I circuiti ZKP definiscono i vincoli aritmetici (es. possesso di una patente valida, crediti $\ge 15$, correttezza della transizione di crediti).
+* Il Worker genera una prova off-chain utilizzando il proprio stato privato e la relativa randomness come witness segreti, fornendo come input pubblico il commitment presente sul ledger.
+* Il Verifier (o il backend al varco) convalida la prova verificando che il commitment corrisponda allo stato corrente registrato on-chain (`LicenseOnChain.commitment`).
 
 ## Identità applicativa
 
@@ -168,27 +173,17 @@ WorksiteID distingue due tipi di utenti:
 * `WORKER`;
 * `INSPECTOR`.
 
-L'identità applicativa è gestita dal backend tramite il sistema definito nelle issue #5, #6 e #8.
+L'identità applicativa è gestita dal backend tramite passkey WebAuthn.
 
-L'autenticazione viene effettuata tramite WebAuthn.
-
-Il wallet locale identifica l'utente tramite:
-
-* `userId`;
-* `userType`.
-
-Le identità applicative non vengono quindi modellate tramite Fabric MSP.
+Il wallet locale identifica l'utente tramite `userId` e `userType`. Per i lavoratori, il wallet custodisce il `PrivateLicenseState` contenente crediti, stato e randomness necessari a dimostrare lo stato della patente.
 
 ## Separazione delle responsabilità
 
 L'architettura mantiene separate:
 
-* interfaccia utente;
-* autenticazione applicativa;
-* logica applicativa;
-* integrazione blockchain;
-* infrastruttura blockchain;
-* logica del chaincode;
-* circuiti crittografici.
-
-Questa separazione rende i componenti più semplici da sviluppare, testare e sostituire.
+* **Interfaccia utente**: interazione con l'utente (Worker o Inspector);
+* **Autenticazione applicativa**: WebAuthn / Passkey;
+* **Dominio privato**: `PrivateLicenseState`, crediti, sanzioni, wallet locale;
+* **Crittografia**: `CommitmentService` e circuiti ZKP;
+* **Integrazione blockchain**: `FireFlyClient` e `BlockchainService`;
+* **Infrastruttura ledger**: Hyperledger Fabric e storage immutabile dei soli metadati pubblici (`LicenseOnChain`, `SanctionOnChain`).
