@@ -63,8 +63,9 @@ export class LicenseVerificationServiceImpl
             };
         }
 
-        // Il worker ID deve essere presente nella sessione autenticata o nel payload
-        const workerId = (authenticatedWorkerId ?? payload.workerId)?.trim();
+        // L'identità del Worker deve provenire esclusivamente dalla sessione autenticata (authenticatedWorkerId).
+        // Il workerId eventualmente presente nel payload non è attendibile e non può sostituire la sessione.
+        const workerId = authenticatedWorkerId?.trim();
         if (!workerId) {
             return {
                 outcome: VerificationOutcome.NOT_PASS,

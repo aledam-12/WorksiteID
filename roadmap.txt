@@ -10,8 +10,7 @@
 | 9  | Chaincode sanzioni            | Regole e autorizzazioni delle sanzioni      | #3, #8      |
 | 10 | Orchestratore backend         | API che astraggono FireFly/Fabric           | #5, #9      |
 | 11 | Commitment dello stato        | C1, C2, ... e gestione randomness           | #9, #10     |
-| 12-13 | ZKP & Challenge anti-replay   | Circuito, proving/verifying e challenge     | #11         |
-| 14 | Verifica completa al varco    | Commitment corrente + ZKP + nonce + stato   | #12         |
+| 12-13-14| ZKP & Challenge anti-replay, verifica al varco   | Circuito, proving/verifying e challenge     | #11         |
 | 15 | VC / Issuer                   | Emissione e verifica della credenziale      | #4, #6, #10 |
 | 16 | Security testing              | Test degli attacchi principali              | #14         |
 | 17 | Portabilità                   | Setup automatico e documentazione           | progressiva |

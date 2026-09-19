@@ -93,7 +93,7 @@ describe("LicenseVerificationService", () => {
 
     describe("Verifica con successo (PASS)", () => {
         it("should return PASS and consume challenge when proof, signals, worker and license match", async () => {
-            const result = await service.verifyLicenseAccess(validPayload);
+            const result = await service.verifyLicenseAccess(validPayload, "WRK-001");
 
             expect(result.outcome).toBe(VerificationOutcome.PASS);
             expect(result.reason).toBeUndefined();
@@ -117,23 +117,6 @@ describe("LicenseVerificationService", () => {
             expect(challengeService.consumeChallenge).toHaveBeenCalledWith("test-challenge-uuid");
         });
 
-        it("should accept authenticatedWorkerId passed as parameter", async () => {
-            const payloadWithoutWorkerId = { ...validPayload };
-            delete payloadWithoutWorkerId.workerId;
-
-            const result = await service.verifyLicenseAccess(
-                payloadWithoutWorkerId,
-                "WRK-001",
-            );
-            expect(result.outcome).toBe(VerificationOutcome.PASS);
-            expect(challengeService.validateChallenge).toHaveBeenCalledWith(
-                "test-challenge-uuid",
-                "WRK-001",
-                "LIC-001",
-                validChallenge,
-            );
-        });
-
         it("should work when publicSignals is passed as an object", async () => {
             const payloadWithObjectSignals: LicenseVerificationPayload = {
                 ...validPayload,
@@ -144,13 +127,13 @@ describe("LicenseVerificationService", () => {
                 },
             };
 
-            const result = await service.verifyLicenseAccess(payloadWithObjectSignals);
+            const result = await service.verifyLicenseAccess(payloadWithObjectSignals, "WRK-001");
             expect(result.outcome).toBe(VerificationOutcome.PASS);
             expect(challengeService.consumeChallenge).toHaveBeenCalledWith("test-challenge-uuid");
         });
 
         it("should never expose private credits, witness, or randomness in result", async () => {
-            const result = await service.verifyLicenseAccess(validPayload);
+            const result = await service.verifyLicenseAccess(validPayload, "WRK-001");
 
             expect(result).not.toHaveProperty("credits");
             expect(result).not.toHaveProperty("randomness");
@@ -159,28 +142,50 @@ describe("LicenseVerificationService", () => {
         });
     });
 
-    describe("Binding Utente, Challenge e Patente", () => {
-        it("should return NOT_PASS when workerId is missing from both payload and parameter", async () => {
-            const payloadWithoutWorker = { ...validPayload };
-            delete payloadWithoutWorker.workerId;
-
-            const result = await service.verifyLicenseAccess(payloadWithoutWorker);
+    describe("Origine dell'Identità Worker e Anti-Impersonificazione", () => {
+        it("should return NOT_PASS when authenticatedWorkerId is missing even if payload contains workerId", async () => {
+            // Nessun authenticatedWorkerId passato: non deve fare fallback su payload.workerId
+            const result = await service.verifyLicenseAccess(validPayload);
             expect(result.outcome).toBe(VerificationOutcome.NOT_PASS);
             expect(result.reason).toContain("Authenticated worker ID is required");
             expect(challengeService.validateChallenge).not.toHaveBeenCalled();
         });
 
-        it("should return NOT_PASS when Worker A tries to use Worker B's challenge", async () => {
+        it("should return NOT_PASS when authenticatedWorkerId is empty string or whitespace", async () => {
+            const result = await service.verifyLicenseAccess(validPayload, "   ");
+            expect(result.outcome).toBe(VerificationOutcome.NOT_PASS);
+            expect(result.reason).toContain("Authenticated worker ID is required");
+            expect(challengeService.validateChallenge).not.toHaveBeenCalled();
+        });
+
+        it("should reject impersonation when attacker sets payload.workerId to match victim", async () => {
             challengeService.validateChallenge.mockRejectedValue(
                 new InvalidChallengeError(
-                    "Challenge does not belong to worker: WRK-002",
+                    "Challenge does not belong to worker: WRK-ATTACKER",
                 ),
             );
 
-            // Worker B (WRK-002) attempts to use the payload with Worker A's challenge
-            const result = await service.verifyLicenseAccess(validPayload, "WRK-002");
+            // L'attaccante inserisce payload.workerId = "WRK-001" (vittima), ma la sessione è "WRK-ATTACKER"
+            const spoofedPayload: LicenseVerificationPayload = {
+                ...validPayload,
+                workerId: "WRK-001",
+            };
+
+            const result = await service.verifyLicenseAccess(
+                spoofedPayload,
+                "WRK-ATTACKER",
+            );
+
             expect(result.outcome).toBe(VerificationOutcome.NOT_PASS);
-            expect(result.reason).toContain("does not belong to worker");
+            expect(result.reason).toContain("does not belong to worker: WRK-ATTACKER");
+
+            // Verifica che il servizio abbia usato l'identità autenticata "WRK-ATTACKER" e NON il payload
+            expect(challengeService.validateChallenge).toHaveBeenCalledWith(
+                "test-challenge-uuid",
+                "WRK-ATTACKER",
+                "LIC-001",
+                validChallenge,
+            );
             expect(challengeService.consumeChallenge).not.toHaveBeenCalled();
         });
 
@@ -196,7 +201,7 @@ describe("LicenseVerificationService", () => {
                 licenseRef: "LIC-999",
             };
 
-            const result = await service.verifyLicenseAccess(payloadDifferentLicense);
+            const result = await service.verifyLicenseAccess(payloadDifferentLicense, "WRK-001");
             expect(result.outcome).toBe(VerificationOutcome.NOT_PASS);
             expect(result.reason).toContain("not issued for license");
             expect(challengeService.consumeChallenge).not.toHaveBeenCalled();
@@ -207,6 +212,7 @@ describe("LicenseVerificationService", () => {
         it("should return NOT_PASS when payload is null or undefined", async () => {
             const result = await service.verifyLicenseAccess(
                 null as unknown as LicenseVerificationPayload,
+                "WRK-001",
             );
             expect(result.outcome).toBe(VerificationOutcome.NOT_PASS);
             expect(result.reason).toContain("Invalid verification payload");
@@ -214,71 +220,86 @@ describe("LicenseVerificationService", () => {
         });
 
         it("should return NOT_PASS when licenseRef is missing or empty", async () => {
-            const result = await service.verifyLicenseAccess({
-                ...validPayload,
-                licenseRef: "",
-            });
+            const result = await service.verifyLicenseAccess(
+                {
+                    ...validPayload,
+                    licenseRef: "",
+                },
+                "WRK-001",
+            );
             expect(result.outcome).toBe(VerificationOutcome.NOT_PASS);
             expect(result.reason).toContain("License reference is required");
             expect(challengeService.consumeChallenge).not.toHaveBeenCalled();
         });
 
         it("should return NOT_PASS when challengeId is missing or empty", async () => {
-            const result = await service.verifyLicenseAccess({
-                ...validPayload,
-                challengeId: "  ",
-            });
+            const result = await service.verifyLicenseAccess(
+                {
+                    ...validPayload,
+                    challengeId: "  ",
+                },
+                "WRK-001",
+            );
             expect(result.outcome).toBe(VerificationOutcome.NOT_PASS);
             expect(result.reason).toContain("Challenge ID is required");
             expect(challengeService.consumeChallenge).not.toHaveBeenCalled();
         });
 
         it("should return NOT_PASS when publicSignals format has fewer than 3 elements", async () => {
-            const result = await service.verifyLicenseAccess({
-                ...validPayload,
-                publicSignals: ["123", "456"] as unknown as [
-                    string,
-                    string,
-                    string,
-                ],
-            });
+            const result = await service.verifyLicenseAccess(
+                {
+                    ...validPayload,
+                    publicSignals: ["123", "456"] as unknown as [
+                        string,
+                        string,
+                        string,
+                    ],
+                },
+                "WRK-001",
+            );
             expect(result.outcome).toBe(VerificationOutcome.NOT_PASS);
             expect(result.reason).toContain("exactly 3 elements");
             expect(challengeService.consumeChallenge).not.toHaveBeenCalled();
         });
 
         it("should return NOT_PASS when publicSignals format has more than 3 elements", async () => {
-            const result = await service.verifyLicenseAccess({
-                ...validPayload,
-                publicSignals: ["123", "456", "789", "999"] as unknown as [
-                    string,
-                    string,
-                    string,
-                ],
-            });
+            const result = await service.verifyLicenseAccess(
+                {
+                    ...validPayload,
+                    publicSignals: ["123", "456", "789", "999"] as unknown as [
+                        string,
+                        string,
+                        string,
+                    ],
+                },
+                "WRK-001",
+            );
             expect(result.outcome).toBe(VerificationOutcome.NOT_PASS);
             expect(result.reason).toContain("exactly 3 elements");
             expect(challengeService.consumeChallenge).not.toHaveBeenCalled();
         });
 
         it("should return NOT_PASS when publicSignals contain non-decimal characters", async () => {
-            const result = await service.verifyLicenseAccess({
-                ...validPayload,
-                publicSignals: ["12345", "not-a-number", "67890"],
-            });
+            const result = await service.verifyLicenseAccess(
+                {
+                    ...validPayload,
+                    publicSignals: ["12345", "not-a-number", "67890"],
+                },
+                "WRK-001",
+            );
             expect(result.outcome).toBe(VerificationOutcome.NOT_PASS);
             expect(result.reason).toContain("must be a valid decimal string");
             expect(challengeService.consumeChallenge).not.toHaveBeenCalled();
         });
     });
 
-    describe("Validazione Challenge (Anti-replay e Scadenza)", () => {
+    describe("Validazione Challenge (Anti-replay)", () => {
         it("should return NOT_PASS when challenge does not exist", async () => {
             challengeService.validateChallenge.mockRejectedValue(
                 new InvalidChallengeError("Challenge not found: unknown-id"),
             );
 
-            const result = await service.verifyLicenseAccess(validPayload);
+            const result = await service.verifyLicenseAccess(validPayload, "WRK-001");
             expect(result.outcome).toBe(VerificationOutcome.NOT_PASS);
             expect(result.reason).toContain("Challenge not found");
             expect(challengeService.consumeChallenge).not.toHaveBeenCalled();
@@ -291,7 +312,7 @@ describe("LicenseVerificationService", () => {
                 ),
             );
 
-            const result = await service.verifyLicenseAccess(validPayload);
+            const result = await service.verifyLicenseAccess(validPayload, "WRK-001");
             expect(result.outcome).toBe(VerificationOutcome.NOT_PASS);
             expect(result.reason).toContain("already been used");
             expect(challengeService.consumeChallenge).not.toHaveBeenCalled();
@@ -304,7 +325,7 @@ describe("LicenseVerificationService", () => {
                 ),
             );
 
-            const result = await service.verifyLicenseAccess(validPayload);
+            const result = await service.verifyLicenseAccess(validPayload, "WRK-001");
             expect(result.outcome).toBe(VerificationOutcome.NOT_PASS);
             expect(result.reason).toContain("already been used");
         });
@@ -316,7 +337,7 @@ describe("LicenseVerificationService", () => {
                 ),
             );
 
-            const result = await service.verifyLicenseAccess(validPayload);
+            const result = await service.verifyLicenseAccess(validPayload, "WRK-001");
             expect(result.outcome).toBe(VerificationOutcome.NOT_PASS);
             expect(result.reason).toContain("does not match expected challenge");
             expect(challengeService.consumeChallenge).not.toHaveBeenCalled();
@@ -327,7 +348,7 @@ describe("LicenseVerificationService", () => {
         it("should return NOT_PASS when license is not found on ledger", async () => {
             blockchainService.getLicenseState.mockResolvedValue(null);
 
-            const result = await service.verifyLicenseAccess(validPayload);
+            const result = await service.verifyLicenseAccess(validPayload, "WRK-001");
             expect(result.outcome).toBe(VerificationOutcome.NOT_PASS);
             expect(result.reason).toContain("License not found on ledger");
             expect(challengeService.consumeChallenge).not.toHaveBeenCalled();
@@ -338,7 +359,7 @@ describe("LicenseVerificationService", () => {
                 new Error("Ledger connection timeout"),
             );
 
-            const result = await service.verifyLicenseAccess(validPayload);
+            const result = await service.verifyLicenseAccess(validPayload, "WRK-001");
             expect(result.outcome).toBe(VerificationOutcome.NOT_PASS);
             expect(result.reason).toContain("Blockchain retrieval error");
             expect(challengeService.consumeChallenge).not.toHaveBeenCalled();
@@ -354,7 +375,7 @@ describe("LicenseVerificationService", () => {
                 differentCommitmentState,
             );
 
-            const result = await service.verifyLicenseAccess(validPayload);
+            const result = await service.verifyLicenseAccess(validPayload, "WRK-001");
             expect(result.outcome).toBe(VerificationOutcome.NOT_PASS);
             expect(result.reason).toContain("Commitment mismatch");
             expect(challengeService.consumeChallenge).not.toHaveBeenCalled();
@@ -366,7 +387,7 @@ describe("LicenseVerificationService", () => {
         it("should return NOT_PASS and NOT consume challenge when verifyProof returns false", async () => {
             zkpService.verifyProof.mockResolvedValue(false);
 
-            const result = await service.verifyLicenseAccess(validPayload);
+            const result = await service.verifyLicenseAccess(validPayload, "WRK-001");
             expect(result.outcome).toBe(VerificationOutcome.NOT_PASS);
             expect(result.reason).toContain("Invalid Groth16 proof");
             expect(challengeService.consumeChallenge).not.toHaveBeenCalled();
