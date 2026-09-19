@@ -1,25 +1,29 @@
-import { createHash } from "node:crypto";
 import {
     CommitmentService,
     CommitmentServiceImpl,
 } from "../../../backend/src/services/commitment-service.js";
+import { LicenseStatusEnum } from "../../../backend/src/domain/license.js";
 
-describe("CommitmentService", () => {
+describe("CommitmentService (Poseidon)", () => {
     let commitmentService: CommitmentService;
+
+    // bn128 curve scalar field prime: p = 21888242871839275222246405745257275088548364400416034343698204186575808495617
+    const BN128_FIELD_PRIME = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
 
     beforeEach(() => {
         commitmentService = new CommitmentServiceImpl();
     });
 
     describe("generateRandomness", () => {
-        it("should generate non-empty and sufficiently long randomness", () => {
+        it("should generate a valid CSPRNG decimal string fitting within bn128 scalar field", () => {
             const randomness = commitmentService.generateRandomness();
 
             expect(typeof randomness).toBe("string");
-            expect(randomness.length).toBeGreaterThanOrEqual(32);
-            // Default 32 bytes -> 64 hex characters
-            expect(randomness).toHaveLength(64);
-            expect(randomness).toMatch(/^[0-9a-f]+$/);
+            expect(randomness).toMatch(/^[0-9]+$/);
+
+            const randBigInt = BigInt(randomness);
+            expect(randBigInt).toBeGreaterThan(0n);
+            expect(randBigInt).toBeLessThan(BN128_FIELD_PRIME);
         });
 
         it("should generate different randomness on subsequent calls", () => {
@@ -27,14 +31,6 @@ describe("CommitmentService", () => {
             const r2 = commitmentService.generateRandomness();
 
             expect(r1).not.toBe(r2);
-        });
-
-        it("should allow custom byte lengths", () => {
-            const r16 = commitmentService.generateRandomness(16);
-            expect(r16).toHaveLength(32);
-
-            const r64 = commitmentService.generateRandomness(64);
-            expect(r64).toHaveLength(128);
         });
 
         it("should reject non-positive byte lengths", () => {
@@ -47,304 +43,148 @@ describe("CommitmentService", () => {
         });
     });
 
-    describe("canonical encoding", () => {
-        it("should deterministically encode objects regardless of key order", () => {
-            const stateA = {
-                licenseId: "LIC-001",
-                credits: 30,
-                status: "ACTIVE",
-            };
-            const stateB = {
-                status: "ACTIVE",
-                credits: 30,
-                licenseId: "LIC-001",
-            };
+    describe("createCommitment (Poseidon)", () => {
+        it("should match the Circom Poseidon commitment bit-for-bit with test vectors", async () => {
+            // Test vector used in Circom witness calculation and license-verification.json:
+            // credits: 30, status: 1 (ACTIVE), version: 1, randomness: 123456789
+            const expectedCommitment =
+                "19183109381518206312794836465842399593219837414581162645845819618634038672702";
 
-            const encodedA = commitmentService.canonicalize(stateA);
-            const encodedB = commitmentService.canonicalize(stateB);
-
-            expect(encodedA).toBe(encodedB);
-            expect(encodedA).toBe(
-                '{"credits":30,"licenseId":"LIC-001","status":"ACTIVE"}',
-            );
-        });
-
-        it("should deterministically encode nested objects with different key order", () => {
-            const stateA = {
-                id: "LIC-001",
-                metadata: {
-                    issuer: "Authority-A",
-                    version: 1,
-                },
-            };
-            const stateB = {
-                metadata: {
-                    version: 1,
-                    issuer: "Authority-A",
-                },
-                id: "LIC-001",
-            };
-
-            const encodedA = commitmentService.canonicalize(stateA);
-            const encodedB = commitmentService.canonicalize(stateB);
-
-            expect(encodedA).toBe(encodedB);
-            expect(encodedA).toBe(
-                '{"id":"LIC-001","metadata":{"issuer":"Authority-A","version":1}}',
-            );
-        });
-
-        it("should preserve array elements order while canonicalizing objects inside", () => {
             const state = {
-                items: [
-                    { b: 2, a: 1 },
-                    { d: 4, c: 3 },
-                ],
+                credits: 30,
+                status: LicenseStatusEnum.ACTIVE,
+                version: 1,
             };
 
-            const encoded = commitmentService.canonicalize(state);
-            expect(encoded).toBe('{"items":[{"a":1,"b":2},{"c":3,"d":4}]}');
-        });
-
-        it("should correctly handle primitives, null, and booleans", () => {
-            expect(commitmentService.canonicalize(null)).toBe("null");
-            expect(commitmentService.canonicalize(true)).toBe("true");
-            expect(commitmentService.canonicalize(false)).toBe("false");
-            expect(commitmentService.canonicalize(42)).toBe("42");
-            expect(commitmentService.canonicalize(-0)).toBe("0");
-            expect(commitmentService.canonicalize("hello")).toBe('"hello"');
-        });
-
-        it("should ignore undefined properties in objects", () => {
-            const stateA = { a: 1, b: undefined };
-            const stateB = { a: 1 };
-
-            expect(commitmentService.canonicalize(stateA)).toBe(
-                commitmentService.canonicalize(stateB),
+            const commitment = await commitmentService.createCommitment(
+                state,
+                "123456789",
             );
+
+            expect(commitment).toBe(expectedCommitment);
         });
 
-        it("should reject circular references", () => {
-            const circular: Record<string, unknown> = { a: 1 };
-            circular.self = circular;
-
-            expect(() => commitmentService.canonicalize(circular)).toThrow(
-                "Circular reference detected during canonicalization",
-            );
-        });
-
-        it("should reject non-finite numbers", () => {
-            expect(() => commitmentService.canonicalize(NaN)).toThrow(
-                "Cannot canonicalize non-finite number",
-            );
-            expect(() => commitmentService.canonicalize(Infinity)).toThrow(
-                "Cannot canonicalize non-finite number",
-            );
-        });
-
-        it("should reject bigint values as unsupported", () => {
-            expect(() => commitmentService.canonicalize(10n)).toThrow(
-                "Unsupported value type: bigint",
-            );
-            expect(() =>
-                commitmentService.canonicalize({ amount: 10n }),
-            ).toThrow("Unsupported value type: bigint");
-        });
-    });
-
-    describe("createCommitment", () => {
-        const baseState = {
-            licenseId: "LIC-100",
-            credits: 30,
-        };
-
-        it("should produce the same commitment for same state and same randomness", () => {
-            const randomness = commitmentService.generateRandomness();
-
-            const c1 = commitmentService.createCommitment(baseState, randomness);
-            const c2 = commitmentService.createCommitment(baseState, randomness);
-
-            expect(c1).toBe(c2);
-            expect(c1).toHaveLength(64);
-            expect(c1).toMatch(/^[0-9a-f]{64}$/);
-        });
-
-        it("should produce different commitments for same state and different randomness", () => {
-            const r1 = commitmentService.generateRandomness();
-            const r2 = commitmentService.generateRandomness();
-
-            const c1 = commitmentService.createCommitment(baseState, r1);
-            const c2 = commitmentService.createCommitment(baseState, r2);
-
-            expect(c1).not.toBe(c2);
-        });
-
-        it("should produce different commitments for different state and same randomness", () => {
-            const randomness = commitmentService.generateRandomness();
-            const differentState = {
-                licenseId: "LIC-100",
-                credits: 25,
+        it("should accept status as numeric or enum string", async () => {
+            const stateEnum = {
+                credits: 30,
+                status: LicenseStatusEnum.ACTIVE,
+                version: 1,
             };
 
-            const c1 = commitmentService.createCommitment(baseState, randomness);
-            const c2 = commitmentService.createCommitment(differentState, randomness);
+            const stateNumeric = {
+                credits: 30,
+                status: 1,
+                version: 1,
+            };
 
-            expect(c1).not.toBe(c2);
+            const cEnum = await commitmentService.createCommitment(stateEnum, "123456789");
+            const cNum = await commitmentService.createCommitment(stateNumeric, "123456789");
+
+            expect(cEnum).toBe(cNum);
         });
 
-        it("should produce the same commitment regardless of state property ordering", () => {
-            const randomness = commitmentService.generateRandomness();
-            const state1 = { licenseId: "LIC-100", credits: 30 };
-            const state2 = { credits: 30, licenseId: "LIC-100" };
+        it("should produce different commitments when credits change", async () => {
+            const randomness = "987654321";
+            const stateA = { credits: 30, status: "ACTIVE", version: 1 };
+            const stateB = { credits: 25, status: "ACTIVE", version: 1 };
 
-            const c1 = commitmentService.createCommitment(state1, randomness);
-            const c2 = commitmentService.createCommitment(state2, randomness);
+            const cA = await commitmentService.createCommitment(stateA, randomness);
+            const cB = await commitmentService.createCommitment(stateB, randomness);
 
-            expect(c1).toBe(c2);
+            expect(cA).not.toBe(cB);
         });
 
-        it("should compute commitment explicitly matching SHA-256(canonicalize({ state, randomness }))", () => {
-            const randomness = commitmentService.generateRandomness();
-            const expectedPreimage = commitmentService.canonicalize({
-                state: baseState,
-                randomness,
-            });
-            const expectedCommitment = createHash("sha256")
-                .update(expectedPreimage, "utf8")
-                .digest("hex");
+        it("should produce different commitments when status changes", async () => {
+            const randomness = "987654321";
+            const stateA = { credits: 30, status: "ACTIVE", version: 1 };
+            const stateB = { credits: 30, status: "REVOKED", version: 1 };
 
-            const actualCommitment = commitmentService.createCommitment(
-                baseState,
-                randomness,
-            );
+            const cA = await commitmentService.createCommitment(stateA, randomness);
+            const cB = await commitmentService.createCommitment(stateB, randomness);
 
-            expect(actualCommitment).toBe(expectedCommitment);
+            expect(cA).not.toBe(cB);
         });
 
-        it("should throw an error if state is invalid", () => {
-            const randomness = commitmentService.generateRandomness();
+        it("should produce different commitments when version changes", async () => {
+            const randomness = "987654321";
+            const stateA = { credits: 30, status: "ACTIVE", version: 1 };
+            const stateB = { credits: 30, status: "ACTIVE", version: 2 };
 
-            expect(() =>
-                commitmentService.createCommitment(null as unknown as Record<string, unknown>, randomness),
-            ).toThrow("State must be a non-null object");
+            const cA = await commitmentService.createCommitment(stateA, randomness);
+            const cB = await commitmentService.createCommitment(stateB, randomness);
 
-            expect(() =>
-                commitmentService.createCommitment([] as unknown as Record<string, unknown>, randomness),
-            ).toThrow("State must be a non-null object");
+            expect(cA).not.toBe(cB);
         });
 
-        it("should throw an error if randomness is empty or not a string", () => {
-            expect(() =>
-                commitmentService.createCommitment(baseState, ""),
-            ).toThrow("Randomness must not be empty");
+        it("should produce different commitments when randomness changes", async () => {
+            const state = { credits: 30, status: "ACTIVE", version: 1 };
 
-            expect(() =>
-                commitmentService.createCommitment(baseState, "   "),
-            ).toThrow("Randomness must not be empty");
+            const cA = await commitmentService.createCommitment(state, "111111111");
+            const cB = await commitmentService.createCommitment(state, "222222222");
 
-            expect(() =>
-                commitmentService.createCommitment(baseState, null as unknown as string),
-            ).toThrow("Randomness must not be empty");
+            expect(cA).not.toBe(cB);
+        });
+
+        it("should reject invalid inputs", async () => {
+            await expect(
+                commitmentService.createCommitment(null as unknown as Record<string, unknown>, "123"),
+            ).rejects.toThrow("State must be a non-null object");
+
+            await expect(
+                commitmentService.createCommitment({ credits: 30, status: "ACTIVE" } as unknown as Record<string, unknown>, "123"),
+            ).rejects.toThrow("State must include version");
+
+            await expect(
+                commitmentService.createCommitment({ credits: 30, version: 1 } as unknown as Record<string, unknown>, "123"),
+            ).rejects.toThrow("State must include status");
+
+            await expect(
+                commitmentService.createCommitment({ status: "ACTIVE", version: 1 } as unknown as Record<string, unknown>, "123"),
+            ).rejects.toThrow("State must include credits");
+
+            await expect(
+                commitmentService.createCommitment({ credits: 30, status: "ACTIVE", version: 1 }, ""),
+            ).rejects.toThrow("Randomness must not be empty");
         });
     });
 
     describe("verifyCommitment", () => {
-        const state = {
-            licenseId: "LIC-200",
-            credits: 20,
-        };
+        it("should return true when commitment matches state and randomness", async () => {
+            const state = { credits: 30, status: "ACTIVE", version: 1 };
+            const randomness = "123456789";
+            const commitment = await commitmentService.createCommitment(state, randomness);
 
-        it("should return true for a correct commitment", () => {
-            const randomness = commitmentService.generateRandomness();
-            const commitment = commitmentService.createCommitment(state, randomness);
-
-            const isValid = commitmentService.verifyCommitment(
-                state,
-                randomness,
-                commitment,
-            );
-
+            const isValid = await commitmentService.verifyCommitment(state, randomness, commitment);
             expect(isValid).toBe(true);
         });
 
-        it("should return true for an uppercase valid commitment", () => {
-            const randomness = commitmentService.generateRandomness();
-            const commitment = commitmentService.createCommitment(state, randomness);
+        it("should return false when commitment does not match", async () => {
+            const state = { credits: 30, status: "ACTIVE", version: 1 };
+            const randomness = "123456789";
+            const commitment = await commitmentService.createCommitment(state, randomness);
 
-            const isValid = commitmentService.verifyCommitment(
-                state,
-                randomness,
-                commitment.toUpperCase(),
-            );
-
-            expect(isValid).toBe(true);
-        });
-
-        it("should return false for a modified commitment", () => {
-            const randomness = commitmentService.generateRandomness();
-            const commitment = commitmentService.createCommitment(state, randomness);
-
-            // Flip the last character to tamper the commitment
-            const lastChar = commitment.slice(-1);
-            const tamperedLastChar = lastChar === "0" ? "1" : "0";
-            const tamperedCommitment =
-                commitment.slice(0, -1) + tamperedLastChar;
-
-            const isValid = commitmentService.verifyCommitment(
-                state,
-                randomness,
-                tamperedCommitment,
-            );
-
-            expect(isValid).toBe(false);
-        });
-
-        it("should return false if state is modified", () => {
-            const randomness = commitmentService.generateRandomness();
-            const commitment = commitmentService.createCommitment(state, randomness);
-            const modifiedState = { ...state, credits: 15 };
-
-            const isValid = commitmentService.verifyCommitment(
-                modifiedState,
-                randomness,
-                commitment,
-            );
-
-            expect(isValid).toBe(false);
-        });
-
-        it("should return false if randomness is modified", () => {
-            const randomness = commitmentService.generateRandomness();
-            const commitment = commitmentService.createCommitment(state, randomness);
-            const tamperedRandomness = commitmentService.generateRandomness();
-
-            const isValid = commitmentService.verifyCommitment(
-                state,
-                tamperedRandomness,
-                commitment,
-            );
-
-            expect(isValid).toBe(false);
-        });
-
-        it("should return false for malformed or empty commitments", () => {
-            const randomness = commitmentService.generateRandomness();
-
+            // Mismatched state
             expect(
-                commitmentService.verifyCommitment(state, randomness, ""),
-            ).toBe(false);
-            expect(
-                commitmentService.verifyCommitment(state, randomness, "invalid-hex"),
-            ).toBe(false);
-            expect(
-                commitmentService.verifyCommitment(state, randomness, "abc"),
-            ).toBe(false);
-            expect(
-                commitmentService.verifyCommitment(
-                    state,
+                await commitmentService.verifyCommitment(
+                    { credits: 20, status: "ACTIVE", version: 1 },
                     randomness,
-                    null as unknown as string,
+                    commitment,
                 ),
+            ).toBe(false);
+
+            // Mismatched randomness
+            expect(
+                await commitmentService.verifyCommitment(state, "999999", commitment),
+            ).toBe(false);
+
+            // Corrupted commitment string
+            expect(
+                await commitmentService.verifyCommitment(state, randomness, "9999999999999"),
+            ).toBe(false);
+
+            // Empty commitment
+            expect(
+                await commitmentService.verifyCommitment(state, randomness, ""),
             ).toBe(false);
         });
     });

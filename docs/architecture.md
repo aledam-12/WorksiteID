@@ -140,31 +140,52 @@ La correttezza matematica della transizione di stato tra crediti precedenti e cr
 
 ## Schema di Commitment dello Stato
 
-Il sistema adotta uno schema di commitment crittografico per garantire la riservatezza e l'integrità dei dati del lavoratore:
+Il sistema adotta uno schema di commitment crittografico SNARK-friendly (funzione hash **Poseidon**) per garantire la riservatezza, l'integrità e la verificabilità a conoscenza zero dei dati del lavoratore:
 
-### Algoritmo di Commitment
+### Algoritmo di Commitment (Poseidon)
 
-Dato uno stato privato $S$ e un valore di randomness crittografica $R$:
+Dato uno stato privato $S = (\text{credits}, \text{status}, \text{version})$ e un valore di randomness crittografica $R$:
 
-$$C = \text{SHA-256}(\text{canonicalize}(\{ \text{state}: S, \text{randomness}: R \}))$$
+$$C = \text{Poseidon}(\text{credits}, \text{status}, \text{version}, R) \pmod p$$
 
-1. **Randomness CSPRNG**: generata mediante `node:crypto.randomBytes(32)` (256 bit di entropia crittografica), garantendo l'imprevedibilità e la resistenza a dizionari o brute-force.
-2. **Canonicalizzazione Deterministica**: prima dell'hashing, l'oggetto contenente stato e randomness viene serializzato tramite canonicalizzazione deterministica (ordinamento ricorsivo delle chiavi, serializzazione uniforme di stringhe, numeri e booleani) per evitare discrepanze tra runtime diversi.
-3. **Digest SHA-256**: produce una stringa esadecimale a 64 caratteri lowercase.
+### Proprietà di Sicurezza del Commitment
 
-### Proprietà di Sicurezza
+* **Hiding**: è computazionalmente impossibile dedurre $S$ (crediti, stato o versione) osservando esclusivamente il commitment $C$ on-chain, grazie all'elevata entropia della randomness $R$ (248 bit).
+* **Binding**: per le proprietà crittografiche dell'hash algebrico Poseidon (resistenza alle collisioni e alla pre-immagine), è computazionalmente impossibile trovare una quadrupla $(\text{credits}', \text{status}', \text{version}', R') \ne (\text{credits}, \text{status}, \text{version}, R)$ tale per cui $\text{Poseidon}(\dots) = C$. Una volta pubblicato $C$ sul ledger, lo stato è congelato e non falsificabile.
 
-* **Hiding**: è computazionalmente impossibile dedurre $S$ (crediti, stato, ID reale) osservando esclusivamente il commitment $C$ on-chain, grazie all'elevata entropia della randomness $R$.
-* **Binding**: è computazionalmente impossibile trovare una coppia $(S', R') \ne (S, R)$ tale per cui $\text{Commitment}(S', R') = C$. Una volta pubblicato $C$ sul ledger, il lavoratore o l'ispettore non possono alterare a posteriori i dati a cui si riferisce.
-* **Protezione Timing Attacks**: la verifica dei commitment nel backend avviene tramite `timingSafeEqual` a tempo costante.
+---
 
-## ZKP (Zero-Knowledge Proofs)
+## ZKP (Zero-Knowledge Proofs) & Verifica al Varco
 
-Le funzionalità Zero-Knowledge Proof consentono la verifica al varco e la verifica delle sanzioni senza rivelare i dati privati:
+WorksiteID impiega il sistema di prova a conoscenza zero **Groth16** per consentire la verifica dell'accesso al cantiere nel rispetto assoluto del GDPR (minimizzazione dei dati e privacy by design).
 
-* I circuiti ZKP definiscono i vincoli aritmetici (es. possesso di una patente valida, crediti $\ge 15$, correttezza della transizione di crediti).
-* Il Worker genera una prova off-chain utilizzando il proprio stato privato e la relativa randomness come witness segreti, fornendo come input pubblico il commitment presente sul ledger.
-* Il Verifier (o il backend al varco) convalida la prova verificando che il commitment corrisponda allo stato corrente registrato on-chain (`LicenseOnChain.commitment`).
+### Il Circuito Aritmetico (`license_verification.circom`)
+
+Il circuito impone i seguenti vincoli algebrici (R1CS):
+
+* **Segnali Privati (Witness)**:
+  - `credits`: saldo punti della patente del lavoratore;
+  - `status`: stato della patente ($1 = \text{ACTIVE}$, $0 = \text{REVOKED}$);
+  - `version`: versione dello stato;
+  - `randomness`: segreto crittografico CSPRNG associato alla versione corrente.
+* **Segnali Pubblici (Noti a Prover e Verifier)**:
+  - `commitment`: commitment registrato on-chain sul ledger;
+  - `challenge`: sfida casuale monouso emessa dal varco/backend;
+  - `challengeBinding`: digest che lega la challenge alla randomness del lavoratore.
+* **Vincoli Verificati nel Circuito**:
+  1. `credits >= 15`: implementato mediante comparatore a 8 bit `LessThan(8)`;
+  2. `status === 1`: verifica che la patente sia attiva;
+  3. `commitment === Poseidon([credits, status, version, randomness])`: vincola la prova allo stato pubblico registrato;
+  4. `challengeBinding === Poseidon([commitment, challenge, randomness])`: dimostra che il Prover possiede la specifica randomness $R$ legata al commitment senza mai rivelarla.
+
+---
+
+### Regole del verificatore (`LicenseVerificationService`)
+
+1. **Coerenza con la Blockchain**: Se la patente non è registrata sul ledger Fabric o se il commitment nei segnali pubblici differisce da quello registrato on-chain (`onChainState.commitment !== publicSignals.commitment`), l'esito è immediatamente `NOT_PASS` (es. patente sanzionata con commitment non aggiornato dal worker).
+2. **Minimizzazione dei Dati**: La risposta di verifica contiene esclusivamente `{ outcome: "PASS" }` oppure `{ outcome: "NOT_PASS", reason: "..." }`. Nessun campo relativo a crediti, timestamp di sanzione, randomness o witness viene mai registrato nei log o restituito nella risposta.
+
+---
 
 ## Identità applicativa
 
@@ -175,15 +196,16 @@ WorksiteID distingue due tipi di utenti:
 
 L'identità applicativa è gestita dal backend tramite passkey WebAuthn.
 
-Il wallet locale identifica l'utente tramite `userId` e `userType`. Per i lavoratori, il wallet custodisce il `PrivateLicenseState` contenente crediti, stato e randomness necessari a dimostrare lo stato della patente.
+Il wallet locale identifica l'utente tramite `userId` e `userType`. Per i lavoratori, il wallet custodisce il `PrivateLicenseState` contenente crediti, stato e randomness necessari a calcolare i testimoni e a generare le prove ZKP.
 
 ## Separazione delle responsabilità
 
-L'architettura mantiene separate:
+L'architettura mantiene rigorosamente separate:
 
 * **Interfaccia utente**: interazione con l'utente (Worker o Inspector);
 * **Autenticazione applicativa**: WebAuthn / Passkey;
-* **Dominio privato**: `PrivateLicenseState`, crediti, sanzioni, wallet locale;
-* **Crittografia**: `CommitmentService` e circuiti ZKP;
+* **Dominio privato**: `PrivateLicenseState`, crediti, sanzioni, wallet locale del lavoratore;
+* **Crittografia**: `CommitmentService` (Poseidon), `ChallengeService` (CSPRNG), `ZkpService` (Groth16);
+* **Orchestrazione di Verifica**: `LicenseVerificationService` (collegamento tra wallet, prova e blockchain);
 * **Integrazione blockchain**: `FireFlyClient` e `BlockchainService`;
 * **Infrastruttura ledger**: Hyperledger Fabric e storage immutabile dei soli metadati pubblici (`LicenseOnChain`, `SanctionOnChain`).

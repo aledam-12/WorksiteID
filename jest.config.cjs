@@ -27,4 +27,6 @@ module.exports = {
   coverageDirectory: "<rootDir>/coverage",
 
   clearMocks: true,
+
+  forceExit: true,
 };

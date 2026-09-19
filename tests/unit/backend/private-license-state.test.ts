@@ -278,15 +278,15 @@ describe("PrivateLicenseState & Wallet Integration", () => {
     });
 
     describe("randomness presente", () => {
-        it("should have a cryptographically secure, non-empty randomness of 64 hex chars", () => {
+        it("should have a cryptographically secure, non-empty randomness as a decimal string", () => {
             const state = PrivateLicenseState.createInitial(
                 "LIC-001",
                 commitmentService,
             );
 
             expect(typeof state.randomness).toBe("string");
-            expect(state.randomness).toHaveLength(64);
-            expect(state.randomness).toMatch(/^[0-9a-f]{64}$/);
+            expect(state.randomness.length).toBeGreaterThan(0);
+            expect(state.randomness).toMatch(/^[0-9]+$/);
         });
 
         it("should generate distinct randomness for each new state instance", () => {
@@ -315,34 +315,33 @@ describe("PrivateLicenseState & Wallet Integration", () => {
     });
 
     describe("generazione del commitment", () => {
-        it("should generate a valid SHA-256 commitment from the private state", () => {
+        it("should generate a valid Poseidon commitment from the private state", async () => {
             const state = PrivateLicenseState.createInitial(
                 "LIC-001",
                 commitmentService,
             );
 
-            const commitment = state.computeCommitment(commitmentService);
+            const commitment = await state.computeCommitment(commitmentService);
 
             expect(typeof commitment).toBe("string");
-            expect(commitment).toHaveLength(64);
-            expect(commitment).toMatch(/^[0-9a-f]{64}$/);
+            expect(commitment).toMatch(/^[0-9]+$/);
 
             // Directly matches CommitmentService calculation
-            const expectedCommitment = commitmentService.createCommitment(
+            const expectedCommitment = await commitmentService.createCommitment(
                 state.toCommitmentState(),
                 state.randomness,
             );
             expect(commitment).toBe(expectedCommitment);
         });
 
-        it("should produce the same commitment when called on the same state", () => {
+        it("should produce the same commitment when called on the same state", async () => {
             const state = PrivateLicenseState.createInitial(
                 "LIC-001",
                 commitmentService,
             );
 
-            const c1 = state.computeCommitment(commitmentService);
-            const c2 = state.computeCommitment(commitmentService);
+            const c1 = await state.computeCommitment(commitmentService);
+            const c2 = await state.computeCommitment(commitmentService);
 
             expect(c1).toBe(c2);
         });
@@ -430,7 +429,7 @@ describe("PrivateLicenseState & Wallet Integration", () => {
                 "LIC-001",
                 commitmentService,
             );
-            const originalCommitment = licenseState.computeCommitment(commitmentService);
+            const originalCommitment = await licenseState.computeCommitment(commitmentService);
 
             const wallet = new Wallet(
                 "WRK-001",
@@ -448,35 +447,35 @@ describe("PrivateLicenseState & Wallet Integration", () => {
 
             // Reconstruct commitment from the retrieved state
             const reconstructedCommitment =
-                retrievedWallet!.licenseState!.computeCommitment(commitmentService);
+                await retrievedWallet!.licenseState!.computeCommitment(commitmentService);
 
             expect(reconstructedCommitment).toBe(originalCommitment);
         });
     });
 
     describe("verifica del commitment", () => {
-        it("should return true when verifying a matching commitment", () => {
+        it("should return true when verifying a matching commitment", async () => {
             const state = PrivateLicenseState.createInitial(
                 "LIC-001",
                 commitmentService,
             );
-            const commitment = state.computeCommitment(commitmentService);
+            const commitment = await state.computeCommitment(commitmentService);
 
-            expect(state.verifyCommitment(commitmentService, commitment)).toBe(true);
+            expect(await state.verifyCommitment(commitmentService, commitment)).toBe(true);
         });
 
-        it("should return false when verifying a modified or wrong commitment", () => {
+        it("should return false when verifying a modified or wrong commitment", async () => {
             const state = PrivateLicenseState.createInitial(
                 "LIC-001",
                 commitmentService,
             );
-            const commitment = state.computeCommitment(commitmentService);
+            const commitment = await state.computeCommitment(commitmentService);
 
             const tampered =
                 commitment.slice(0, -1) + (commitment.endsWith("0") ? "1" : "0");
 
-            expect(state.verifyCommitment(commitmentService, tampered)).toBe(false);
-            expect(state.verifyCommitment(commitmentService, "invalid")).toBe(false);
+            expect(await state.verifyCommitment(commitmentService, tampered)).toBe(false);
+            expect(await state.verifyCommitment(commitmentService, "invalid")).toBe(false);
         });
     });
 
@@ -493,13 +492,13 @@ describe("PrivateLicenseState & Wallet Integration", () => {
             await rm(tempDir, { recursive: true, force: true });
         });
 
-        it("should increment version, generate new randomness, and produce a new commitment", () => {
+        it("should increment version, generate new randomness, and produce a new commitment", async () => {
             const stateV1 = PrivateLicenseState.createInitial(
                 "LIC-001",
                 commitmentService,
                 30,
             );
-            const commitmentV1 = stateV1.computeCommitment(commitmentService);
+            const commitmentV1 = await stateV1.computeCommitment(commitmentService);
 
             // Transition to next version (e.g. after penalty, 25 credits)
             const stateV2 = stateV1.nextVersion(commitmentService, {
@@ -512,13 +511,13 @@ describe("PrivateLicenseState & Wallet Integration", () => {
             expect(stateV2.status).toBe(LicenseStatusEnum.ACTIVE);
             expect(stateV2.randomness).not.toBe(stateV1.randomness);
 
-            const commitmentV2 = stateV2.computeCommitment(commitmentService);
+            const commitmentV2 = await stateV2.computeCommitment(commitmentService);
             expect(commitmentV2).not.toBe(commitmentV1);
 
             // Each version verifies against its own commitment
-            expect(stateV1.verifyCommitment(commitmentService, commitmentV1)).toBe(true);
-            expect(stateV2.verifyCommitment(commitmentService, commitmentV2)).toBe(true);
-            expect(stateV1.verifyCommitment(commitmentService, commitmentV2)).toBe(false);
+            expect(await stateV1.verifyCommitment(commitmentService, commitmentV1)).toBe(true);
+            expect(await stateV2.verifyCommitment(commitmentService, commitmentV2)).toBe(true);
+            expect(await stateV1.verifyCommitment(commitmentService, commitmentV2)).toBe(false);
         });
 
         it("should update wallet in repository and persist the new version", async () => {
@@ -555,8 +554,9 @@ describe("PrivateLicenseState & Wallet Integration", () => {
             expect(persisted?.licenseState?.credits).toBe(20);
             expect(persisted?.licenseState?.randomness).toBe(stateV2.randomness);
             expect(
-                persisted?.licenseState?.computeCommitment(commitmentService),
-            ).toBe(stateV2.computeCommitment(commitmentService));
+                await persisted?.licenseState?.computeCommitment(commitmentService),
+            ).toBe(await stateV2.computeCommitment(commitmentService));
         });
     });
 });
+

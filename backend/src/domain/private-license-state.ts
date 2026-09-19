@@ -99,8 +99,8 @@ export class PrivateLicenseState {
     /**
      * Calculates the cryptographic commitment using CommitmentService.
      */
-    computeCommitment(commitmentService: CommitmentService): string {
-        return commitmentService.createCommitment(
+    async computeCommitment(commitmentService: CommitmentService): Promise<string> {
+        return await commitmentService.createCommitment(
             this.toCommitmentState(),
             this.randomness,
         );
@@ -109,11 +109,11 @@ export class PrivateLicenseState {
     /**
      * Verifies if a given commitment matches this private state and randomness.
      */
-    verifyCommitment(
+    async verifyCommitment(
         commitmentService: CommitmentService,
         commitment: string,
-    ): boolean {
-        return commitmentService.verifyCommitment(
+    ): Promise<boolean> {
+        return await commitmentService.verifyCommitment(
             this.toCommitmentState(),
             this.randomness,
             commitment,

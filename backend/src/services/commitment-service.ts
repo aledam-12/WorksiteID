@@ -1,132 +1,121 @@
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
+import { buildPoseidon, PoseidonFunction } from "circomlibjs";
+import { LicenseStatusEnum } from "../domain/license.js";
 
+/**
+ * Stato della patente da inserire nel commitment crittografico.
+ */
 export type CommitmentState = Record<string, unknown>;
 
+/** Istanza singleton della funzione Poseidon */
+let poseidonPromise: Promise<PoseidonFunction> | null = null;
+
+/**
+ * Recupera o inizializza l'istanza della funzione hash Poseidon da circomlibjs.
+ *
+ * @returns Istanza PoseidonFunction pronta all'uso
+ */
+export async function getPoseidonInstance(): Promise<PoseidonFunction> {
+    if (!poseidonPromise) {
+        poseidonPromise = buildPoseidon();
+    }
+    return poseidonPromise;
+}
+
+/**
+ * Converte qualsiasi tipo di valore di input (bigint, intero o stringa numerica)
+ * in un BigInt compatibile con il circuito.
+ *
+ * @param val Valore da convertire
+ * @returns Valore convertito in BigInt
+ * @throws Error se il valore non è valido
+ */
+export function parseFieldElement(val: unknown): bigint {
+    if (typeof val === "bigint") return val;
+    if (typeof val === "number") {
+        if (!Number.isFinite(val) || !Number.isInteger(val)) {
+            throw new Error(`Invalid number for field element: ${val}`);
+        }
+        return BigInt(val);
+    }
+    if (typeof val === "string") {
+        const trimmed = val.trim();
+        if (trimmed === "") {
+            throw new Error("Cannot convert empty string to field element");
+        }
+        if (trimmed.startsWith("0x") || trimmed.startsWith("0X")) {
+            return BigInt(trimmed);
+        }
+        if (/^[0-9]+$/.test(trimmed)) {
+            return BigInt(trimmed);
+        }
+        if (/^[0-9a-fA-F]+$/.test(trimmed)) {
+            return BigInt("0x" + trimmed);
+        }
+    }
+    throw new Error(`Cannot convert value to field element: ${String(val)}`);
+}
+
+/**
+ * Servizio per il calcolo e la verifica dei commitment Poseidon della patente.
+ * Proprietà fondamentali:
+ * - Hiding: nasconde i crediti e lo stato della patente grazie alla randomness casuale.
+ * - Binding: impedisce di modificare i dati della patente dopo aver registrato il commitment on-chain.
+ */
 export interface CommitmentService {
     /**
-     * Generates cryptographically secure randomness.
-     * @param byteLength Number of random bytes (defaults to 32 bytes / 256 bits).
-     * @returns Hex-encoded string of the random bytes.
+     * Genera una stringa casuale crittograficamente sicura (CSPRNG) da usare come randomness.
+     *
+     * @param byteLength Numero di byte casuali (default 31 byte)
+     * @returns Valore casuale come stringa decimale
      */
     generateRandomness(byteLength?: number): string;
 
     /**
-     * Builds a deterministic canonical string representation of the state.
-     * Ensures keys are sorted recursively, arrays and primitives are uniformly serialized.
-     * @param state The state object or value to canonicalize.
-     * @returns Deterministic JSON string.
+     * Calcola il commitment Poseidon dello stato della patente:
+     * C = Poseidon([credits, status, version, randomness])
+     *
+     * @param state Oggetto contenente credits, status, version
+     * @param randomness Valore segreto di randomness
+     * @returns Stringa decimale del commitment compatibile con il circuito Circom
      */
-    canonicalize(state: unknown): string;
+    createCommitment(state: CommitmentState, randomness: string): Promise<string>;
 
     /**
-     * Calculates the cryptographic commitment C = SHA-256(canonicalize({ state, randomness })).
+     * Verifica a tempo costante se il commitment corrisponde allo stato e alla randomness forniti.
      *
-     * Canonical encoding / preimage combination:
-     * 1. Structured canonical representation: `preimage = canonicalize({ state, randomness })`.
-     *    Ensures deterministic serialization with recursively sorted keys for both top-level and inner state.
-     * 2. Hash computation: `SHA-256(preimage)` encoded as a 64-character lowercase hex string.
-     *
-     * @param state The state object containing the commitment data.
-     * @param randomness The cryptographically secure randomness.
-     * @returns Hex-encoded SHA-256 hash.
-     */
-    createCommitment(state: CommitmentState, randomness: string): string;
-
-    /**
-     * Verifies if a given commitment matches the state and randomness.
-     * Uses timingSafeEqual to protect against timing attacks.
-     * @param state The state object.
-     * @param randomness The randomness string.
-     * @param commitment The candidate commitment hex string.
-     * @returns True if the commitment is valid, false otherwise.
+     * @param state Oggetto contenente credits, status, version
+     * @param randomness Segreto del commitment
+     * @param commitment Commitment atteso
+     * @returns true se il commitment corrisponde, false altrimenti
      */
     verifyCommitment(
         state: CommitmentState,
         randomness: string,
         commitment: string,
-    ): boolean;
+    ): Promise<boolean>;
 }
 
 export class CommitmentServiceImpl implements CommitmentService {
-    generateRandomness(byteLength: number = 32): string {
+    /**
+     * Genera un numero casuale a 31 byte tramite crypto.randomBytes.
+     */
+    generateRandomness(byteLength: number = 31): string {
         if (!Number.isInteger(byteLength) || byteLength <= 0) {
             throw new Error("Byte length must be a positive integer");
         }
-        return randomBytes(byteLength).toString("hex");
+        const bytes = randomBytes(byteLength);
+        return BigInt("0x" + bytes.toString("hex")).toString();
     }
 
-    canonicalize(state: unknown): string {
-        return this.serializeCanonical(state, new Set<object>());
-    }
-
-    private serializeCanonical(value: unknown, seen: Set<object>): string {
-        if (value === null) {
-            return "null";
-        }
-
-        if (typeof value === "boolean") {
-            return value ? "true" : "false";
-        }
-
-        if (typeof value === "number") {
-            if (!Number.isFinite(value)) {
-                throw new Error("Cannot canonicalize non-finite number");
-            }
-            return Object.is(value, -0) ? "0" : JSON.stringify(value);
-        }
-
-        if (typeof value === "string") {
-            return JSON.stringify(value);
-        }
-
-        if (value instanceof Date) {
-            return JSON.stringify(value.toISOString());
-        }
-
-        if (Array.isArray(value)) {
-            if (seen.has(value)) {
-                throw new Error("Circular reference detected during canonicalization");
-            }
-            seen.add(value);
-            const items = value.map((item) =>
-                item === undefined ? "null" : this.serializeCanonical(item, seen),
-            );
-            seen.delete(value);
-            return `[${items.join(",")}]`;
-        }
-
-        if (typeof value === "object") {
-            if (seen.has(value)) {
-                throw new Error("Circular reference detected during canonicalization");
-            }
-            seen.add(value);
-
-            const record = value as Record<string, unknown>;
-            const keys = Object.keys(record).sort();
-            const entries: string[] = [];
-
-            for (const key of keys) {
-                const propVal = record[key];
-                if (
-                    propVal === undefined ||
-                    typeof propVal === "function" ||
-                    typeof propVal === "symbol"
-                ) {
-                    continue;
-                }
-                entries.push(
-                    `${JSON.stringify(key)}:${this.serializeCanonical(propVal, seen)}`,
-                );
-            }
-
-            seen.delete(value);
-            return `{${entries.join(",")}}`;
-        }
-
-        throw new Error(`Unsupported value type: ${typeof value}`);
-    }
-
-    createCommitment(state: CommitmentState, randomness: string): string {
+    /**
+     * Calcola il commitment Poseidon a 4 input:
+     * Poseidon([credits, status, version, randomness])
+     */
+    async createCommitment(
+        state: CommitmentState,
+        randomness: string,
+    ): Promise<string> {
         if (!state || typeof state !== "object" || Array.isArray(state)) {
             throw new Error("State must be a non-null object");
         }
@@ -139,23 +128,58 @@ export class CommitmentServiceImpl implements CommitmentService {
             throw new Error("Randomness must not be empty");
         }
 
-        // 1. Structured canonical encoding of state + randomness
-        const preimage = this.canonicalize({
-            state,
-            randomness,
-        });
+        // 1. Estrazione dei crediti
+        const credits = state.credits;
+        if (credits === undefined || credits === null) {
+            throw new Error("State must include credits");
+        }
+        const creditsBigInt = parseFieldElement(credits);
 
-        // 2. Compute SHA-256 hash
-        const hash = createHash("sha256");
-        hash.update(preimage, "utf8");
-        return hash.digest("hex");
+        // 2. Normalizzazione dello stato (1 per ACTIVE, 0 per REVOKED)
+        const status = state.status;
+        if (status === undefined || status === null) {
+            throw new Error("State must include status");
+        }
+        let statusBigInt: bigint;
+        if (status === LicenseStatusEnum.ACTIVE || status === "ACTIVE") {
+            statusBigInt = 1n;
+        } else if (status === LicenseStatusEnum.REVOKED || status === "REVOKED") {
+            statusBigInt = 0n;
+        } else {
+            statusBigInt = parseFieldElement(status);
+        }
+
+        // 3. Estrazione della versione
+        const version = state.version;
+        if (version === undefined || version === null) {
+            throw new Error("State must include version");
+        }
+        const versionBigInt = parseFieldElement(version);
+
+        // 4. Parsing della randomness
+        const randomnessBigInt = parseFieldElement(randomness);
+
+        // 5. Calcolo dell'hash Poseidon
+        const poseidon = await getPoseidonInstance();
+        const hash = poseidon([
+            creditsBigInt,
+            statusBigInt,
+            versionBigInt,
+            randomnessBigInt,
+        ]);
+
+        return poseidon.F.toString(hash);
     }
 
-    verifyCommitment(
+    /**
+     * Confronta a tempo costante il commitment calcolato con quello fornito,
+     * prevenendo attacchi di temporizzazione (timing attacks).
+     */
+    async verifyCommitment(
         state: CommitmentState,
         randomness: string,
         commitment: string,
-    ): boolean {
+    ): Promise<boolean> {
         if (
             !commitment ||
             typeof commitment !== "string" ||
@@ -165,18 +189,15 @@ export class CommitmentServiceImpl implements CommitmentService {
         }
 
         try {
-            const expectedCommitment = this.createCommitment(state, randomness);
-            const normalizedActual = commitment.trim().toLowerCase();
+            const expectedCommitment = await this.createCommitment(state, randomness);
+            const normalizedActual = commitment.trim();
 
-            if (
-                normalizedActual.length !== expectedCommitment.length ||
-                !/^[0-9a-f]{64}$/.test(normalizedActual)
-            ) {
+            if (expectedCommitment.length !== normalizedActual.length) {
                 return false;
             }
 
-            const expectedBuffer = Buffer.from(expectedCommitment, "hex");
-            const actualBuffer = Buffer.from(normalizedActual, "hex");
+            const expectedBuffer = Buffer.from(expectedCommitment, "utf8");
+            const actualBuffer = Buffer.from(normalizedActual, "utf8");
 
             return timingSafeEqual(expectedBuffer, actualBuffer);
         } catch {

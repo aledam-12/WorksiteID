@@ -30,6 +30,9 @@ describe("envConfig", () => {
             fireflyNamespace: "default",
             fireflyIssuerId: "worksiteid-issuer",
             fireflyApiName: "sanction_contract",
+            zkpWasmPath: expect.any(String),
+            zkpZkeyPath: expect.any(String),
+            zkpVerificationKeyPath: expect.any(String),
         });
     });
 
