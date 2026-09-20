@@ -12,6 +12,7 @@
     "dev": "node --env-file=.env --import=tsx --watch backend/src/server.ts",
     "build": "tsc -p backend/tsconfig.json",
     "test": "jest",
+    "test:integration": "jest --config=jest.integration.config.cjs",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
@@ -38,6 +39,7 @@
     "@simplewebauthn/server": "^13.3.2",
     "circomlib": "^2.0.5",
     "circomlibjs": "^0.1.7",
-    "fastify": "^5.12.1"
+    "fastify": "^5.12.1",
+    "mysql2": "^3.24.4"
   }
 }

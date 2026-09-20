@@ -33,6 +33,7 @@ tmp/
 temp/
 
 # Secrets / cryptographic material
+secrets/
 *.key
 *.pem
 *.p12

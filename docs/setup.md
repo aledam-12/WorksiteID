@@ -102,3 +102,19 @@ La procedura di deployment richiede un package di chaincode e specifica:
 Per la configurazione locale attuale, il canale di riferimento è `firefly`.
 
 Il chaincode non gestisce l'autenticazione WebAuthn degli utenti. L'autenticazione e l'autorizzazione applicativa vengono gestite dal backend, che costituisce il trusted gateway verso FireFly e Fabric.
+
+Il backend integra un persistence layer basato su **MySQL** gestito direttamente tramite il driver `mysql2` con Promise API (senza ORM pesanti quali Prisma o TypeORM).
+
+
+## Livello di Persistenza (MySQL)
+
+### Configurazione Ambiente
+
+Il modulo di connessione (`backend/src/database/connection.ts`) è configurabile tramite variabili d'ambiente:
+
+* `DB_HOST`: host del server MySQL (default: `localhost`);
+* `DB_PORT`: porta di ascolto (default: `3306`);
+* `DB_NAME`: nome del database applicativo (`worksiteid` per sviluppo/produzione, `worksiteid_test` per i test di integrazione);
+* `DB_USER`: utente database (default: `root`);
+* `DB_PASSWORD`: password database;
+* `LICENSE_REF_SECRET`: chiave segreta per la derivazione HMAC-SHA256 di `licenseRef` (obbligatoria in produzione, configurabile in dev/test, mai memorizzata o esposta).

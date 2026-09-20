@@ -8,26 +8,35 @@ Il sistema adotta un approccio **Privacy by Design**: i dati sensibili del lavor
 
 ---
 
-## Entità del Dominio Privato (Off-Chain / Wallet)
+## Entità del Dominio Privato (Off-Chain / Wallet / Database)
+
+### User
+
+Rappresenta l'identità applicativa e di autenticazione comune a Worker e Inspector:
+
+* `id` — identificativo univoco dell'utente;
+* `userType` — tipo di utente (`worker` o `inspector`);
+* `createdAt` — data e ora di registrazione.
+
+Non contiene password, chiavi private o credenziali Fabric. L'autenticazione è delegata a passkey WebAuthn (`WebAuthnCredentials`).
 
 ### Worker
 
-Rappresenta il lavoratore a cui è associata una patente.
+Rappresenta il lavoratore dell'impresa edile:
 
-* `id` — identificativo univoco del lavoratore;
+* `id` — identificativo univoco del lavoratore (chiave esterna verso `users.id`);
 * `name` — nome del lavoratore;
 * `surname` — cognome del lavoratore;
-* `cf` — codice fiscale;
-* `company` — impresa di appartenenza;
-* `licenseId` — identificativo della patente associata.
+* `cf` — codice fiscale (univoco nel sistema);
+* `company` — impresa di appartenenza.
 
-I dati anagrafici del Worker appartengono al dominio applicativo e non vengono mai memorizzati sulla blockchain.
+Nel database relazionale la tabella `workers` non contiene la colonna `license_id`: la titolarità della patente è modellata in modo autorevole ed esclusivo dal vincolo `private_licenses.worker_id -> workers.id` (`UNIQUE`).
 
 ### Inspector
 
-Rappresenta l'ispettore che opera nel sistema e che può emettere sanzioni.
+Rappresenta l'ispettore che opera nel sistema e che può emettere sanzioni:
 
-* `id` — identificativo univoco dell'ispettore.
+* `id` — identificativo univoco dell'ispettore (chiave esterna verso `users.id`).
 
 L'autenticazione dell'Inspector viene gestita tramite WebAuthn e il ruolo viene verificato dal backend prima di qualsiasi operazione sul ledger.
 
@@ -36,6 +45,8 @@ L'autenticazione dell'Inspector viene gestita tramite WebAuthn e il ruolo viene 
 Rappresenta la patente a crediti del lavoratore e il suo stato privato:
 
 * `licenseId` — identificativo univoco della patente;
+* `workerId` — identificativo del lavoratore titolare (relazione 1:1);
+* `licenseRef` — riferimento deterministico pseudonimo calcolato tramite HMAC-SHA256(`secret`, `licenseId`);
 * `credits` — numero corrente di crediti ($\ge 0$);
 * `status` — stato corrente della patente (`ACTIVE` oppure `REVOKED`);
 * `randomness` — valore crittografico casuale a 256 bit (CSPRNG) generato per ciascuna versione dello stato;
@@ -47,7 +58,7 @@ Una nuova patente viene inizializzata con:
 * `version = 1`;
 * randomness generata tramite `CommitmentService`.
 
-Il `PrivateLicenseState` è custodito localmente nel wallet del lavoratore e non viene mai pubblicato sul ledger.
+Il `PrivateLicenseState` è custodito nel database e nel wallet del lavoratore; non viene mai pubblicato sul ledger pubblico.
 
 ### Sanzione (Dati Privati)
 
@@ -55,9 +66,11 @@ Rappresenta la penalizzazione applicata alla patente nel dominio applicativo:
 
 * `id` — identificativo univoco della sanzione;
 * `penalty` — numero intero di crediti da sottrarre ($> 0$);
-* `licenseId` — identificativo della patente sanzionata;
+* `licenseRef` — riferimento opaco alla patente sanzionata (chiave esterna verso `private_licenses.license_ref`);
 * `reason` — motivazione dettagliata della sanzione;
+* `inspectorRef` — riferimento all'ispettore emittente (chiave esterna verso `inspectors.id`);
 * `issuedAt` — momento di emissione;
+* `randomness` — valore casuale per il commitment.
 * `inspectorId` — identificativo dell'ispettore che ha emesso la sanzione.
 
 La motivazione e l'entità della penalità non vengono salvate sul ledger, proteggendo la privacy del lavoratore e dell'impresa.

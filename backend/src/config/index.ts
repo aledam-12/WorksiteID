@@ -49,16 +49,36 @@ const defaultZkpVerificationKeyPath = path.resolve(process.cwd(), "zkp/build/ver
 const zkpVerificationKeyPath = process.env.ZKP_VERIFICATION_KEY_PATH ?? defaultZkpVerificationKeyPath;
 
 // Configurazione chiavi persistenti per l'Issuer delle Verifiable Credential
-const issuerPrivateKeyPath = process.env.ISSUER_PRIVATE_KEY_PATH
-    ? path.resolve(process.cwd(), process.env.ISSUER_PRIVATE_KEY_PATH)
+const rawPrivateKeyPath = process.env.VC_ISSUER_PRIVATE_KEY_PATH ?? process.env.ISSUER_PRIVATE_KEY_PATH;
+const issuerPrivateKeyPath = rawPrivateKeyPath
+    ? path.resolve(process.cwd(), rawPrivateKeyPath)
     : undefined;
 
-const issuerPublicKeyPath = process.env.ISSUER_PUBLIC_KEY_PATH
-    ? path.resolve(process.cwd(), process.env.ISSUER_PUBLIC_KEY_PATH)
+const rawPublicKeyPath = process.env.VC_ISSUER_PUBLIC_KEY_PATH ?? process.env.ISSUER_PUBLIC_KEY_PATH;
+const issuerPublicKeyPath = rawPublicKeyPath
+    ? path.resolve(process.cwd(), rawPublicKeyPath)
     : undefined;
 
-const issuerPrivateKeyPem = process.env.ISSUER_PRIVATE_KEY_PEM;
-const issuerPublicKeyPem = process.env.ISSUER_PUBLIC_KEY_PEM;
+const issuerPrivateKeyPem = process.env.VC_ISSUER_PRIVATE_KEY_PEM ?? process.env.ISSUER_PRIVATE_KEY_PEM;
+const issuerPublicKeyPem = process.env.VC_ISSUER_PUBLIC_KEY_PEM ?? process.env.ISSUER_PUBLIC_KEY_PEM;
+const vcIssuerId = (process.env.VC_ISSUER_ID?.trim() || fireflyIssuerId);
+
+// Configurazione Database MySQL
+const dbHost = process.env.DB_HOST ?? "localhost";
+const dbPort = Number(process.env.DB_PORT ?? "3306");
+if (!Number.isInteger(dbPort) || dbPort < 1 || dbPort > 65535) {
+    throw new Error("DB_PORT must be a valid integer port number between 1 and 65535");
+}
+const dbName = process.env.DB_NAME ?? "worksiteid";
+const dbUser = process.env.DB_USER ?? "root";
+const dbPassword = process.env.DB_PASSWORD ?? "";
+
+// Configurazione License Reference Secret (HMAC-SHA256)
+// Nessun default hardcoded: se in production manca, fallisce all'avvio
+const licenseRefSecret = process.env.LICENSE_REF_SECRET?.trim() || undefined;
+if (nodeEnv === "production" && !licenseRefSecret) {
+    throw new Error("LICENSE_REF_SECRET is required in production environment");
+}
 
 export const envConfig = {
     nodeEnv,
@@ -74,4 +94,13 @@ export const envConfig = {
     issuerPublicKeyPath,
     issuerPrivateKeyPem,
     issuerPublicKeyPem,
+    dbHost,
+    dbPort,
+    dbName,
+    dbUser,
+    dbPassword,
+    licenseRefSecret,
+    vcIssuerId,
 };
+
+export const config = envConfig;

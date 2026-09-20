@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import { WorkerRepository } from "../repositories/worker-repository.js";
+import { LicenseRepository } from "../repositories/license-repository.js";
 import {
     canonicalizeCredentialPayload,
     DEFAULT_CREDENTIAL_TYPE,
@@ -61,8 +62,9 @@ export class CredentialIssuerServiceImpl implements CredentialIssuerService {
     constructor(
         private readonly workerRepository: WorkerRepository,
         config: CredentialIssuerConfig = {},
+        private readonly licenseRepository?: LicenseRepository,
     ) {
-        this.issuerId = config.issuerId?.trim() || envConfig.fireflyIssuerId || "worksiteid-issuer";
+        this.issuerId = config.issuerId?.trim() || envConfig.vcIssuerId || envConfig.fireflyIssuerId || "worksiteid-issuer";
         this.verificationMethod =
             config.verificationMethod?.trim() || `${this.issuerId}#key-1`;
 
@@ -95,14 +97,23 @@ export class CredentialIssuerServiceImpl implements CredentialIssuerService {
 
         if (privateKeyPem) {
             this.privateKey = crypto.createPrivateKey(privateKeyPem);
-            this.publicKey = publicKeyPem
-                ? crypto.createPublicKey(publicKeyPem)
-                : crypto.createPublicKey(this.privateKey);
+            const derivedPublicKey = crypto.createPublicKey(this.privateKey);
+            if (publicKeyPem) {
+                const configuredPublicKey = crypto.createPublicKey(publicKeyPem);
+                const derivedPem = derivedPublicKey.export({ type: "spki", format: "pem" }) as string;
+                const configuredPem = configuredPublicKey.export({ type: "spki", format: "pem" }) as string;
+                if (derivedPem.trim() !== configuredPem.trim()) {
+                    throw new Error("Issuer public key does not match the private key");
+                }
+                this.publicKey = configuredPublicKey;
+            } else {
+                this.publicKey = derivedPublicKey;
+            }
         } else {
             // In produzione, la chiave privata deve essere esplicitamente configurata
             if (envConfig.nodeEnv === "production") {
                 throw new Error(
-                    "Issuer private key is required in production environment (set ISSUER_PRIVATE_KEY_PATH or ISSUER_PRIVATE_KEY_PEM)",
+                    "Issuer private key is required in production environment (set VC_ISSUER_PRIVATE_KEY_PATH, ISSUER_PRIVATE_KEY_PATH or ISSUER_PRIVATE_KEY_PEM)",
                 );
             }
             // Per ambienti di test e sviluppo locale senza chiavi fornite, fallback a coppia in-memory
@@ -163,7 +174,20 @@ export class CredentialIssuerServiceImpl implements CredentialIssuerService {
         }
 
         // 4. Controllo autorizzativo: il lavoratore deve essere titolare della licenseRef richiesta
-        if (worker.licenseId !== normalizedLicenseRef) {
+        let isAuthorized = false;
+        if (this.licenseRepository) {
+            const license = await this.licenseRepository.findByWorkerId(normalizedWorkerId);
+            if (license && (license.licenseRef === normalizedLicenseRef || license.licenseId === normalizedLicenseRef)) {
+                isAuthorized = true;
+            }
+        }
+        if (!isAuthorized && worker.licenseId) {
+            if (worker.licenseId === normalizedLicenseRef) {
+                isAuthorized = true;
+            }
+        }
+
+        if (!isAuthorized) {
             throw new Error(
                 `Worker ${normalizedWorkerId} is not authorized for license ${normalizedLicenseRef}`,
             );

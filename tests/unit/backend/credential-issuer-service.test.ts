@@ -2,6 +2,9 @@ import crypto from "node:crypto";
 import {
     CredentialIssuerServiceImpl,
 } from "../../../backend/src/services/credential-issuer-service.js";
+import {
+    CredentialVerifierServiceImpl,
+} from "../../../backend/src/services/credential-verifier-service.js";
 import { InMemoryWorkerRepository } from "../../../backend/src/repositories/worker-repository.js";
 import { Worker } from "../../../backend/src/domain/worker.js";
 import {
@@ -9,6 +12,9 @@ import {
     DEFAULT_PROOF_PURPOSE,
     DEFAULT_PROOF_TYPE,
 } from "../../../backend/src/domain/verifiable-credential.js";
+import { InMemoryLicenseRepository } from "../../../backend/src/repositories/license-repository.js";
+import { PrivateLicenseState } from "../../../backend/src/domain/private-license-state.js";
+import { LicenseStatusEnum } from "../../../backend/src/domain/license.js";
 import { envConfig } from "../../../backend/src/config/index.js";
 
 describe("CredentialIssuerService", () => {
@@ -138,6 +144,64 @@ describe("CredentialIssuerService", () => {
                 (envConfig as { nodeEnv: string }).nodeEnv = originalNodeEnv;
             }
         });
+
+        it("rifiuta l'inizializzazione se la public key non corrisponde alla private key", () => {
+            const keyPair1 = crypto.generateKeyPairSync("ed25519");
+            const keyPair2 = crypto.generateKeyPairSync("ed25519");
+
+            const privatePem1 = keyPair1.privateKey.export({ type: "pkcs8", format: "pem" }) as string;
+            const publicPem2 = keyPair2.publicKey.export({ type: "spki", format: "pem" }) as string;
+
+            expect(() => {
+                new CredentialIssuerServiceImpl(workerRepository, {
+                    privateKeyPem: privatePem1,
+                    publicKeyPem: publicPem2,
+                });
+            }).toThrow("Issuer public key does not match the private key");
+        });
+
+        it("garantisce la persistenza e verificabilità delle VC tra riavvii dell'issuer (chiavi da file PEM)", async () => {
+            const fs = await import("node:fs");
+            const path = await import("node:path");
+            const os = await import("node:os");
+
+            const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "vc-issuer-test-"));
+            const privPath = path.join(tempDir, "test-priv.pem");
+            const pubPath = path.join(tempDir, "test-pub.pem");
+
+            try {
+                const keyPair = crypto.generateKeyPairSync("ed25519");
+                fs.writeFileSync(privPath, keyPair.privateKey.export({ type: "pkcs8", format: "pem" }));
+                fs.writeFileSync(pubPath, keyPair.publicKey.export({ type: "spki", format: "pem" }));
+
+                // 1. Prima istanza dell'issuer (prima del riavvio)
+                const issuerBefore = new CredentialIssuerServiceImpl(workerRepository, {
+                    issuerId: "worksiteid-issuer",
+                    privateKeyPath: privPath,
+                    publicKeyPath: pubPath,
+                });
+
+                const vc = await issuerBefore.issueLicenseCredential(WORKER_A_ID, LICENSE_A_REF);
+
+                // 2. Seconda istanza dell'issuer (dopo il riavvio del backend, ricaricando le stesse chiavi)
+                const issuerAfter = new CredentialIssuerServiceImpl(workerRepository, {
+                    issuerId: "worksiteid-issuer",
+                    privateKeyPath: privPath,
+                    publicKeyPath: pubPath,
+                });
+
+                const verifier = new CredentialVerifierServiceImpl({
+                    expectedIssuer: "worksiteid-issuer",
+                    publicKeyPem: issuerAfter.getPublicKeyPem(),
+                });
+
+                // La VC emessa prima del riavvio deve essere verificata con successo con la chiave ricaricata
+                const isValid = await verifier.verifyCredential(vc);
+                expect(isValid).toBe(true);
+            } finally {
+                fs.rmSync(tempDir, { recursive: true, force: true });
+            }
+        });
     });
 
     describe("Minimizzazione dei dati (Privacy by Design)", () => {
@@ -208,6 +272,40 @@ describe("CredentialIssuerService", () => {
                     null as unknown as string,
                 ),
             ).rejects.toThrow("License reference is required");
+        });
+
+        it("autorizza l'emissione verificando la titolarità tramite LicenseRepository.findByWorkerId()", async () => {
+            const licenseRepo = new InMemoryLicenseRepository();
+            const license = new PrivateLicenseState(
+                "LIC-PRIV-001",
+                30,
+                LicenseStatusEnum.ACTIVE,
+                "salt-001",
+                1,
+                WORKER_A_ID,
+                "REF-FROM-LICENSE-REPO-001",
+            );
+            await licenseRepo.save(license);
+
+            const serviceWithLicenseRepo = new CredentialIssuerServiceImpl(
+                workerRepository,
+                { issuerId: "worksiteid-issuer" },
+                licenseRepo,
+            );
+
+            const cred = await serviceWithLicenseRepo.issueLicenseCredential(
+                WORKER_A_ID,
+                "REF-FROM-LICENSE-REPO-001",
+            );
+            expect(cred.credentialSubject.workerId).toBe(WORKER_A_ID);
+            expect(cred.credentialSubject.licenseRef).toBe("REF-FROM-LICENSE-REPO-001");
+
+            await expect(
+                serviceWithLicenseRepo.issueLicenseCredential(
+                    WORKER_A_ID,
+                    "OTHER-LICENSE-REF",
+                ),
+            ).rejects.toThrow(`Worker ${WORKER_A_ID} is not authorized for license OTHER-LICENSE-REF`);
         });
 
         it("rifiuta l'emissione se il lavoratore non esiste nel repository", async () => {

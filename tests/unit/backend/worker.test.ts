@@ -7,7 +7,6 @@ describe("Worker Domain Model", () => {
         surname: "Rossi",
         cf: "RSSMRA80A01H501U",
         company: "Edilizia S.p.A.",
-        licenseId: "LIC-001",
     };
 
     it("should instantiate a valid worker", () => {
@@ -18,7 +17,6 @@ describe("Worker Domain Model", () => {
         expect(worker.surname).toBe("Rossi");
         expect(worker.cf).toBe("RSSMRA80A01H501U");
         expect(worker.company).toBe("Edilizia S.p.A.");
-        expect(worker.licenseId).toBe("LIC-001");
     });
 
     it("should trim leading and trailing whitespace from all fields on creation", () => {
@@ -28,7 +26,6 @@ describe("Worker Domain Model", () => {
             surname: "  Rossi  ",
             cf: "  RSSMRA80A01H501U  ",
             company: "  Edilizia S.p.A.  ",
-            licenseId: "  LIC-001  ",
         });
 
         expect(worker.id).toBe("WRK-001");
@@ -36,7 +33,6 @@ describe("Worker Domain Model", () => {
         expect(worker.surname).toBe("Rossi");
         expect(worker.cf).toBe("RSSMRA80A01H501U");
         expect(worker.company).toBe("Edilizia S.p.A.");
-        expect(worker.licenseId).toBe("LIC-001");
     });
 
     it("should reject an empty or whitespace-only ID", () => {
@@ -96,19 +92,6 @@ describe("Worker Domain Model", () => {
         }).toThrow("Worker company must not be empty");
     });
 
-    it("should reject an empty or whitespace-only licenseId on creation and update", () => {
-        expect(() => new Worker({ ...validWorkerData, licenseId: "" })).toThrow("Worker license ID must not be empty");
-        expect(() => new Worker({ ...validWorkerData, licenseId: "   " })).toThrow("Worker license ID must not be empty");
-
-        const worker = new Worker(validWorkerData);
-        expect(() => {
-            worker.licenseId = "";
-        }).toThrow("Worker license ID must not be empty");
-        expect(() => {
-            worker.licenseId = "   ";
-        }).toThrow("Worker license ID must not be empty");
-    });
-
     it("should correctly update and trim fields via setters", () => {
         const worker = new Worker(validWorkerData);
 
@@ -116,12 +99,10 @@ describe("Worker Domain Model", () => {
         worker.surname = "  Bianchi  ";
         worker.cf = "  BNCLGU85B02H501Z  ";
         worker.company = "  Costruzioni S.r.l.  ";
-        worker.licenseId = "  LIC-002  ";
 
         expect(worker.name).toBe("Luigi");
         expect(worker.surname).toBe("Bianchi");
         expect(worker.cf).toBe("BNCLGU85B02H501Z");
         expect(worker.company).toBe("Costruzioni S.r.l.");
-        expect(worker.licenseId).toBe("LIC-002");
     });
 });

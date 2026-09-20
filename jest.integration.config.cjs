@@ -5,7 +5,7 @@ module.exports = {
 
   roots: ["<rootDir>/tests"],
 
-  testMatch: ["<rootDir>/tests/unit/**/*.test.ts"],
+  testMatch: ["<rootDir>/tests/integration/**/*.test.ts"],
 
   transform: {
     "^.+\\.ts$": [
@@ -29,4 +29,6 @@ module.exports = {
   clearMocks: true,
 
   forceExit: true,
+
+  testTimeout: 30000,
 };

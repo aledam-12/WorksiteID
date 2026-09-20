@@ -70,6 +70,7 @@ export class CredentialVerifierServiceImpl
 
         this.expectedIssuer =
             config.expectedIssuer?.trim() ||
+            envConfig.vcIssuerId ||
             envConfig.fireflyIssuerId ||
             "worksiteid-issuer";
 

@@ -8,6 +8,10 @@ export class PrivateLicenseState {
         public readonly status: LicenseStatusEnum,
         public readonly randomness: string,
         public readonly version: number,
+        public readonly workerId?: string,
+        public readonly licenseRef?: string,
+        public readonly createdAt?: Date,
+        public readonly updatedAt?: Date,
     ) {
         if (
             licenseId === null ||
@@ -79,9 +83,19 @@ export class PrivateLicenseState {
         commitmentService: CommitmentService,
         credits: number = 30,
         status: LicenseStatusEnum = LicenseStatusEnum.ACTIVE,
+        workerId?: string,
+        licenseRef?: string,
     ): PrivateLicenseState {
         const randomness = commitmentService.generateRandomness();
-        return new PrivateLicenseState(licenseId, credits, status, randomness, 1);
+        return new PrivateLicenseState(
+            licenseId,
+            credits,
+            status,
+            randomness,
+            1,
+            workerId,
+            licenseRef,
+        );
     }
 
     /**
@@ -143,6 +157,10 @@ export class PrivateLicenseState {
             nextStatus,
             nextRandomness,
             this.version + 1,
+            this.workerId,
+            this.licenseRef,
+            this.createdAt,
+            new Date(),
         );
     }
 }

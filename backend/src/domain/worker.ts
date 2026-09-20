@@ -1,19 +1,25 @@
-interface WorkerData {
+export interface WorkerData {
     id: string;
     name: string;
     surname: string;
     cf: string;
     company: string;
-    licenseId: string;
+    licenseId?: string;
 }
 
+/**
+ * Modello di dominio del lavoratore (Worker).
+ * In MySQL la relazione autorevole è memorizzata in private_licenses.worker_id.
+ * La proprietà opzionale licenseId è mantenuta per retrocompatibilità con i test
+ * e i contesti in-memory.
+ */
 export class Worker {
     readonly #id: string;
     #name!: string;
     #surname!: string;
     #cf!: string;
     #company!: string;
-    #licenseId!: string;
+    #licenseId: string | undefined;
 
     constructor(data: WorkerData) {
         this.#id = this.#validate(data.id, "Worker ID must not be empty");
@@ -21,7 +27,9 @@ export class Worker {
         this.surname = data.surname;
         this.cf = data.cf;
         this.company = data.company;
-        this.licenseId = data.licenseId;
+        if (data.licenseId !== undefined) {
+            this.licenseId = data.licenseId;
+        }
     }
 
     #validate(value: string, errorMessage: string): string {
@@ -51,7 +59,7 @@ export class Worker {
         return this.#company;
     }
 
-    get licenseId(): string {
+    get licenseId(): string | undefined {
         return this.#licenseId;
     }
 
@@ -71,7 +79,11 @@ export class Worker {
         this.#company = this.#validate(company, "Worker company must not be empty");
     }
 
-    set licenseId(licenseId: string) {
-        this.#licenseId = this.#validate(licenseId, "Worker license ID must not be empty");
+    set licenseId(licenseId: string | undefined) {
+        if (licenseId !== undefined) {
+            this.#licenseId = this.#validate(licenseId, "Worker license ID must not be empty");
+        } else {
+            this.#licenseId = undefined;
+        }
     }
 }

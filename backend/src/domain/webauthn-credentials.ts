@@ -9,6 +9,9 @@ export class WebAuthnCredentials {
     readonly #userType: WebAuthnUserType;
     readonly #publicKey: string;
     #counter: number;
+    readonly #transports: string[] | undefined;
+    readonly #createdAt: Date | undefined;
+    #lastUsedAt: Date | null | undefined;
 
     constructor(
         id: string,
@@ -16,12 +19,18 @@ export class WebAuthnCredentials {
         userType: WebAuthnUserType,
         publicKey: string,
         counter: number,
+        transports?: string[],
+        createdAt?: Date,
+        lastUsedAt?: Date | null,
     ) {
         this.#id = WebAuthnCredentials.validateId(id);
         this.#userId = WebAuthnCredentials.validateUserId(userId);
         this.#userType = WebAuthnCredentials.validateUserType(userType);
         this.#publicKey = WebAuthnCredentials.validatePublicKey(publicKey);
         this.#counter = WebAuthnCredentials.validateCounter(counter);
+        this.#transports = transports;
+        this.#createdAt = createdAt;
+        this.#lastUsedAt = lastUsedAt;
     }
 
     get id(): string {
@@ -42,6 +51,22 @@ export class WebAuthnCredentials {
 
     get counter(): number {
         return this.#counter;
+    }
+
+    get transports(): string[] | undefined {
+        return this.#transports;
+    }
+
+    get createdAt(): Date | undefined {
+        return this.#createdAt;
+    }
+
+    get lastUsedAt(): Date | null | undefined {
+        return this.#lastUsedAt;
+    }
+
+    updateLastUsed(lastUsedAt: Date = new Date()): void {
+        this.#lastUsedAt = lastUsedAt;
     }
 
     updateCounter(newCounter: number): void {

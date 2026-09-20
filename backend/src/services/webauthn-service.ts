@@ -27,11 +27,12 @@ export class WebAuthnServiceImpl implements WebAuthnService {
     ) { }
 
     async beginRegistration(userId: string, userType: WebAuthnUserType): Promise<PublicKeyCredentialCreationOptionsJSON> {
-        const cred = await this.credentialRepository.findByUserId(userId);
+        const creds = await this.credentialRepository.findByUserId(userId);
         if (!(await this.identityService.exists(userId, userType))) {
             throw new Error("User not found");
         }
-        if (cred !== null) {
+        const hasCred = Array.isArray(creds) ? creds.length > 0 : creds !== null;
+        if (hasCred) {
             throw new Error("User already has a credential");
         }
 
@@ -57,8 +58,9 @@ export class WebAuthnServiceImpl implements WebAuthnService {
             throw new Error("User not found");
         }
 
-        const cred = await this.credentialRepository.findByUserId(userId);
-        if (cred !== null) {
+        const creds = await this.credentialRepository.findByUserId(userId);
+        const hasCred = Array.isArray(creds) ? creds.length > 0 : creds !== null;
+        if (hasCred) {
             throw new Error("User already has a credential");
         }
 
@@ -104,18 +106,17 @@ export class WebAuthnServiceImpl implements WebAuthnService {
             throw new Error("User not found");
         }
 
-        const cred = await this.credentialRepository.findByUserId(userId);
-        if (cred === null) {
+        const creds = await this.credentialRepository.findByUserId(userId);
+        const credList = Array.isArray(creds) ? creds : (creds ? [creds] : []);
+        if (credList.length === 0) {
             throw new Error("User has no registered credential");
         }
 
         const options = await generateAuthenticationOptions({
             rpID: process.env.RP_ID ?? "localhost",
-            allowCredentials: [
-                {
-                    id: cred.id,
-                }
-            ],
+            allowCredentials: credList.map((c) => ({
+                id: c.id,
+            })),
             userVerification: "required",
         });
 
@@ -129,10 +130,12 @@ export class WebAuthnServiceImpl implements WebAuthnService {
             throw new Error("User not found");
         }
 
-        const cred = await this.credentialRepository.findByUserId(userId);
-        if (cred === null) {
+        const creds = await this.credentialRepository.findByUserId(userId);
+        const credList = Array.isArray(creds) ? creds : (creds ? [creds] : []);
+        if (credList.length === 0) {
             throw new Error("User has no registered credential");
         }
+        const cred = credList.find((c) => c.id === response.id) ?? credList[0]!;
 
         const expectedChallenge = await this.challengeStore.get(userId);
         if (!expectedChallenge) {

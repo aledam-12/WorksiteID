@@ -268,3 +268,35 @@ L'architettura mantiene rigorosamente separate:
 * **Orchestrazione di Verifica**: `LicenseVerificationService` (collegamento tra wallet, prova e blockchain);
 * **Integrazione blockchain**: `FireFlyClient` e `BlockchainService`;
 * **Infrastruttura ledger**: Hyperledger Fabric e storage immutabile dei soli metadati pubblici (`LicenseOnChain`, `SanctionOnChain`).
+* **Persistence Layer (MySQL)**: persistenza relazionale off-chain per utenti, anagrafica, credenziali WebAuthn, stato privato delle patenti e sanzioni.
+
+---
+
+## Livello di Persistenza (MySQL)
+
+
+
+### Connection Pool e Transazioni
+
+* **Connection Pool**: gestione centralizzata del pool di connessioni con keep-alive (`createDatabasePool`, `getDatabasePool`, `closeDatabasePool`);
+* **Transazioni gestite**: funzione di utilità `withTransaction(poolOrConn, callback)` che garantisce commit automatico in caso di successo, rollback su eccezioni e rilascio controllato delle connessioni al pool.
+
+### Repositories Implementati
+
+L'accesso ai dati è incapsulato in repository con interfacce pulite e duplice implementazione (`InMemory*` per unit test isolati e `MySql*` per l'ambiente reale):
+
+1. **`UserRepository` / `MySqlUserRepository`**: gestione tabella `users` (`id`, `user_type`, `created_at`).
+2. **`WorkerRepository` / `MySqlWorkerRepository`**: gestione tabella `workers` (`id`, `name`, `surname`, `cf`, `company`), con vincolo `UNIQUE` sul codice fiscale (`cf`).
+3. **`InspectorRepository` / `MySqlInspectorRepository`**: gestione tabella `inspectors` (`id`).
+4. **`CredentialRepository` / `MySqlCredentialRepository`**: gestione tabella `webauthn_credentials`, con supporto a credenziali multiple per utente, codifica binaria (`VARBINARY(1024)` per `credential_id`, `BLOB` per `public_key`), memorizzazione `transports` in formato JSON nativo e aggiornamento atomico del counter e timestamp `last_used_at`.
+5. **`LicenseRepository` / `MySqlLicenseRepository`**: gestione tabella `private_licenses` (`license_id`, `worker_id`, `license_ref`, `credits`, `status`, `randomness`, `version`), con vincolo `UNIQUE` su `worker_id` (relazione 1:1 autorevole) e su `license_ref`.
+6. **`SanctionRepository` / `MySqlSanctionRepository`**: gestione tabella `private_sanctions` (`sanction_id`, `license_ref`, `penalty`, `reason`, `inspector_ref`, `issued_at`, `randomness`), con vincolo `CHECK (penalty > 0)` e chiavi esterne su `license_ref` e `inspector_ref`.
+
+### Derivazione e Verifica `licenseRef` (`LicenseReferenceService`)
+
+La correlazione tra identità locale privata e stato pubblico on-chain avviene tramite un riferimento pseudonimo deterministico:
+
+$$\text{licenseRef} = \text{HMAC-SHA256}(\text{secret}, \text{licenseId})$$
+
+* **Generazione (`generateLicenseRef`)**: calcola il digest hex lowercase in modo deterministico e senza confronti temporali.
+* **Verifica (`verifyLicenseRef`)**: confronta il digest atteso con quello fornito dall'esterno convertendoli in `Buffer` e utilizzando `crypto.timingSafeEqual` a tempo costante dopo verifica della lunghezza, proteggendo da attacchi di timing.

@@ -37,6 +37,13 @@ describe("envConfig", () => {
             issuerPublicKeyPath: undefined,
             issuerPrivateKeyPem: undefined,
             issuerPublicKeyPem: undefined,
+            dbHost: "localhost",
+            dbPort: 3306,
+            dbName: "worksiteid",
+            dbUser: "root",
+            dbPassword: "",
+            licenseRefSecret: undefined,
+            vcIssuerId: "worksiteid-issuer",
         });
     });
 
@@ -191,5 +198,58 @@ describe("envConfig", () => {
         expect(envConfig.issuerPublicKeyPath).toContain("keys/issuer-public.pem");
         expect(envConfig.issuerPrivateKeyPem).toBe(process.env.ISSUER_PRIVATE_KEY_PEM);
         expect(envConfig.issuerPublicKeyPem).toBe(process.env.ISSUER_PUBLIC_KEY_PEM);
+    });
+
+    it("should prioritize VC_ISSUER_* over generic ISSUER_* variables", async () => {
+        process.env.VC_ISSUER_ID = "vc-custom-issuer";
+        process.env.VC_ISSUER_PRIVATE_KEY_PATH = "secrets/vc-private.pem";
+        process.env.VC_ISSUER_PUBLIC_KEY_PATH = "secrets/vc-public.pem";
+        process.env.ISSUER_PRIVATE_KEY_PATH = "old/private.pem";
+        process.env.ISSUER_PUBLIC_KEY_PATH = "old/public.pem";
+
+        const { envConfig } = await import(
+            "../../../backend/src/config/index.ts"
+        );
+
+        expect(envConfig.vcIssuerId).toBe("vc-custom-issuer");
+        expect(envConfig.issuerPrivateKeyPath).toContain("secrets/vc-private.pem");
+        expect(envConfig.issuerPublicKeyPath).toContain("secrets/vc-public.pem");
+    });
+
+    it("should load database configuration when provided", async () => {
+        process.env.DB_HOST = "192.168.1.100";
+        process.env.DB_PORT = "3307";
+        process.env.DB_NAME = "worksiteid_custom";
+        process.env.DB_USER = "app_user";
+        process.env.DB_PASSWORD = "secret_password";
+        process.env.LICENSE_REF_SECRET = "super_secret_hmac_key";
+
+        const { envConfig } = await import(
+            "../../../backend/src/config/index.ts"
+        );
+
+        expect(envConfig.dbHost).toBe("192.168.1.100");
+        expect(envConfig.dbPort).toBe(3307);
+        expect(envConfig.dbName).toBe("worksiteid_custom");
+        expect(envConfig.dbUser).toBe("app_user");
+        expect(envConfig.dbPassword).toBe("secret_password");
+        expect(envConfig.licenseRefSecret).toBe("super_secret_hmac_key");
+    });
+
+    it("should reject an invalid DB_PORT", async () => {
+        process.env.DB_PORT = "invalid_port";
+
+        await expect(
+            import("../../../backend/src/config/index.ts"),
+        ).rejects.toThrow("DB_PORT must be a valid integer port number");
+    });
+
+    it("should reject missing LICENSE_REF_SECRET in production", async () => {
+        process.env.NODE_ENV = "production";
+        delete process.env.LICENSE_REF_SECRET;
+
+        await expect(
+            import("../../../backend/src/config/index.ts"),
+        ).rejects.toThrow("LICENSE_REF_SECRET is required in production environment");
     });
 });
