@@ -187,6 +187,65 @@ Il circuito impone i seguenti vincoli algebrici (R1CS):
 
 ---
 
+## Verifiable Credentials (VC) & Servizio Issuer
+
+Nel prototipo WorksiteID, la **Verifiable Credential (VC)** è un'attestazione digitale emessa dall'autorità competente (**Issuer**) che certifica in modo crittografico la titolarità della patente di cantiere da parte del lavoratore.
+
+Si tratta di una **VC minimale ispirata al modello concettuale W3C**, pensata per la demo universitaria senza introdurre la complessità di una suite Data Integrity completa, registri DID decentralizzati o registri di revoca on-chain.
+
+### Chi è l'Issuer?
+
+L'Issuer è l'autorità di emissione del sistema, rappresentata come configurazione e server identity (`worksiteid-issuer`).
+L'Issuer gestisce una coppia di chiavi asimmetriche basate sull'algoritmo standard **Ed25519** (utilizzato tramite il modulo nativo `node:crypto`). Le chiavi sono configurabili in formato PEM (e generate in memoria nei test), senza chiavi hardcoded o committate nel repository.
+
+### Cosa contiene la VC
+
+La credenziale (`WorksiteLicenseCredential`) include esclusivamente le informazioni essenziali:
+
+* `id` — identificativo URI univoco (`urn:uuid:...`);
+* `type` — array dei tipi (`["VerifiableCredential", "WorksiteLicenseCredential"]`);
+* `issuer` — identificativo dell'autorità (`worksiteid-issuer`);
+* `issuanceDate` — timestamp ISO 8601 di emissione;
+* `credentialSubject` — associazione tra il lavoratore e la patente:
+  * `workerId` — identificativo del lavoratore autenticato;
+  * `licenseRef` — riferimento della patente a cui è associato;
+* `proof` — prova crittografica apposta dall'Issuer:
+  * `type` — `"Ed25519Signature2020"`;
+  * `created` — timestamp ISO 8601 di generazione della prova;
+  * `proofPurpose` — `"assertionMethod"`;
+  * `verificationMethod` — metodo di verifica configurato dell'issuer (es. `"worksiteid-issuer#key-1"`);
+  * `signature` — firma digitale Ed25519 in formato Base64.
+
+### Cosa NON contiene la VC (Privacy by Design)
+
+Per garantire la minimizzazione dei dati e la riservatezza:
+
+* non include il saldo crediti (`credits`);
+* non include lo stato privato della patente (`status`);
+* non include la randomness crittografica (`randomness`);
+* non include sanzioni o dettagli disciplinari;
+* non include commitment crittografici.
+
+### Differenza tra VC e ZKP
+
+Nel sistema, VC e ZKP assolvono a due compiti distinti e complementari:
+
+* **Verifiable Credential (VC)**: attesta l'autenticità e la provenienza dell'abilitazione rilasciata dall'Issuer (*"L'autorità certifica che il Worker X è il legittimo titolare della patente con licenseRef Y"*).
+* **Zero-Knowledge Proof (ZKP)**: attesta la conformità dinamica al varco d'accesso (*"Il Worker dimostra a conoscenza zero che il proprio stato privato corrente ha credits $\ge 15$, corrisponde al commitment autoritativo registrato sul ledger Fabric e risponde a una challenge fresca monouso, senza svelare il punteggio residuo"*).
+
+### Flusso di Verifica (`CredentialVerifierService`)
+
+La verifica della credenziale avviene in modalità deterministica:
+
+1. **Validazione strutturale**: verifica della presenza e del tipo di tutti i campi obbligatori;
+2. **Controllo Issuer e Verification Method**: confronto con l'issuer atteso e il `verificationMethod` autorizzato;
+3. **Canonicalizzazione deterministica**: il payload firmato viene ricostruito con ordine fisso ed esplicito dei campi;
+4. **Verifica crittografica**: validazione della firma Ed25519 con la chiave pubblica dell'Issuer (`crypto.verify`).
+
+Qualsiasi alterazione a `workerId`, `licenseRef`, `issuer`, `issuanceDate` o alla firma rende la VC non valida (`false`).
+
+---
+
 ## Identità applicativa
 
 WorksiteID distingue due tipi di utenti:

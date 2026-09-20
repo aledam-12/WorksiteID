@@ -48,6 +48,18 @@ const zkpZkeyPath = process.env.ZKP_ZKEY_PATH ?? defaultZkpZkeyPath;
 const defaultZkpVerificationKeyPath = path.resolve(process.cwd(), "zkp/build/verification_key.json");
 const zkpVerificationKeyPath = process.env.ZKP_VERIFICATION_KEY_PATH ?? defaultZkpVerificationKeyPath;
 
+// Configurazione chiavi persistenti per l'Issuer delle Verifiable Credential
+const issuerPrivateKeyPath = process.env.ISSUER_PRIVATE_KEY_PATH
+    ? path.resolve(process.cwd(), process.env.ISSUER_PRIVATE_KEY_PATH)
+    : undefined;
+
+const issuerPublicKeyPath = process.env.ISSUER_PUBLIC_KEY_PATH
+    ? path.resolve(process.cwd(), process.env.ISSUER_PUBLIC_KEY_PATH)
+    : undefined;
+
+const issuerPrivateKeyPem = process.env.ISSUER_PRIVATE_KEY_PEM;
+const issuerPublicKeyPem = process.env.ISSUER_PUBLIC_KEY_PEM;
+
 export const envConfig = {
     nodeEnv,
     port,
@@ -58,4 +70,8 @@ export const envConfig = {
     zkpWasmPath,
     zkpZkeyPath,
     zkpVerificationKeyPath,
+    issuerPrivateKeyPath,
+    issuerPublicKeyPath,
+    issuerPrivateKeyPem,
+    issuerPublicKeyPem,
 };

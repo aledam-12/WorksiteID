@@ -33,6 +33,10 @@ describe("envConfig", () => {
             zkpWasmPath: expect.any(String),
             zkpZkeyPath: expect.any(String),
             zkpVerificationKeyPath: expect.any(String),
+            issuerPrivateKeyPath: undefined,
+            issuerPublicKeyPath: undefined,
+            issuerPrivateKeyPem: undefined,
+            issuerPublicKeyPem: undefined,
         });
     });
 
@@ -171,5 +175,21 @@ describe("envConfig", () => {
         expect(envConfig.fireflyNamespace).toBe("default");
         expect(envConfig.fireflyIssuerId).toBe("worksiteid-issuer");
         expect(envConfig.fireflyApiName).toBe("sanction_contract");
+    });
+
+    it("should load issuer key configuration when provided", async () => {
+        process.env.ISSUER_PRIVATE_KEY_PATH = "keys/issuer-private.pem";
+        process.env.ISSUER_PUBLIC_KEY_PATH = "keys/issuer-public.pem";
+        process.env.ISSUER_PRIVATE_KEY_PEM = "-----BEGIN PRIVATE KEY-----\nMIIB...==\n-----END PRIVATE KEY-----";
+        process.env.ISSUER_PUBLIC_KEY_PEM = "-----BEGIN PUBLIC KEY-----\nMCow...==\n-----END PUBLIC KEY-----";
+
+        const { envConfig } = await import(
+            "../../../backend/src/config/index.ts"
+        );
+
+        expect(envConfig.issuerPrivateKeyPath).toContain("keys/issuer-private.pem");
+        expect(envConfig.issuerPublicKeyPath).toContain("keys/issuer-public.pem");
+        expect(envConfig.issuerPrivateKeyPem).toBe(process.env.ISSUER_PRIVATE_KEY_PEM);
+        expect(envConfig.issuerPublicKeyPem).toBe(process.env.ISSUER_PUBLIC_KEY_PEM);
     });
 });
