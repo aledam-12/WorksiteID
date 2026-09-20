@@ -14,7 +14,8 @@
     "test": "jest",
     "test:integration": "jest --config=jest.integration.config.cjs",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "keys:generate": "node scripts/generate-issuer-keys.js"
   },
   "keywords": [],
   "author": "",

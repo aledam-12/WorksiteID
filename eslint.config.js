@@ -26,9 +26,10 @@ export default tseslint.config(
     },
   },
   {
-    files: ["**/*.cjs"],
+    files: ["**/*.cjs", "scripts/**/*.js"],
     languageOptions: {
       globals: {
+        ...globals.node,
         module: "readonly",
         require: "readonly",
       },

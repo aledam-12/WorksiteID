@@ -118,3 +118,21 @@ Il modulo di connessione (`backend/src/database/connection.ts`) è configurabile
 * `DB_USER`: utente database (default: `root`);
 * `DB_PASSWORD`: password database;
 * `LICENSE_REF_SECRET`: chiave segreta per la derivazione HMAC-SHA256 di `licenseRef` (obbligatoria in produzione, configurabile in dev/test, mai memorizzata o esposta).
+
+## Verifiable Credentials (VC) Issuer
+
+L'Issuer delle Verifiable Credential utilizza una coppia di chiavi asimmetriche Ed25519 persistenti per apporre la firma digitale.
+
+### Generazione Chiavi di Sviluppo Locale
+
+Per generare le chiavi persistenti per lo sviluppo locale:
+
+```bash
+npm run keys:generate
+```
+
+Questo comando genera:
+* `./secrets/issuer-private-key.pem` (chiave privata Ed25519 PKCS#8)
+* `./secrets/issuer-public-key.pem` (chiave pubblica Ed25519 SPKI)
+
+La directory `secrets/` e i relativi file `.pem` sono rigorosamente esclusi dal versionamento Git tramite `.gitignore`.

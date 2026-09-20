@@ -40,13 +40,17 @@ const fireflyApiName = checkString(fireflyApiNameRaw, "FIREFLY_API_NAME");
 
 // Percorsi per gli artifact ZKP Groth16
 const defaultZkpWasmPath = path.resolve(process.cwd(), "zkp/build/license_verification_js/license_verification.wasm");
-const zkpWasmPath = process.env.ZKP_WASM_PATH ?? defaultZkpWasmPath;
+const zkpWasmPath = process.env.ZKP_WASM_PATH ?? process.env.ZKP_CIRCUIT_PATH ?? defaultZkpWasmPath;
 
 const defaultZkpZkeyPath = path.resolve(process.cwd(), "zkp/build/license_verification_final.zkey");
 const zkpZkeyPath = process.env.ZKP_ZKEY_PATH ?? defaultZkpZkeyPath;
 
 const defaultZkpVerificationKeyPath = path.resolve(process.cwd(), "zkp/build/verification_key.json");
 const zkpVerificationKeyPath = process.env.ZKP_VERIFICATION_KEY_PATH ?? defaultZkpVerificationKeyPath;
+
+// Configurazione WebAuthn
+const rpId = process.env.RP_ID ?? "localhost";
+const origin = process.env.ORIGIN ?? "http://localhost:3000";
 
 // Configurazione chiavi persistenti per l'Issuer delle Verifiable Credential
 const rawPrivateKeyPath = process.env.VC_ISSUER_PRIVATE_KEY_PATH ?? process.env.ISSUER_PRIVATE_KEY_PATH;
@@ -101,6 +105,8 @@ export const envConfig = {
     dbPassword,
     licenseRefSecret,
     vcIssuerId,
+    rpId,
+    origin,
 };
 
 export const config = envConfig;

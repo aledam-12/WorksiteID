@@ -44,6 +44,8 @@ describe("envConfig", () => {
             dbPassword: "",
             licenseRefSecret: undefined,
             vcIssuerId: "worksiteid-issuer",
+            rpId: "localhost",
+            origin: "http://localhost:3000",
         });
     });
 
