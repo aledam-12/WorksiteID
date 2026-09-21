@@ -29,7 +29,7 @@ describe("envConfig", () => {
             fireflyUrl: "http://localhost:5000",
             fireflyNamespace: "default",
             fireflyIssuerId: "worksiteid-issuer",
-            fireflyApiName: "sanction_contract",
+            fireflyApiName: "sanctionsv2.0",
             zkpWasmPath: expect.any(String),
             zkpZkeyPath: expect.any(String),
             zkpVerificationKeyPath: expect.any(String),
@@ -74,7 +74,7 @@ describe("envConfig", () => {
 
         expect(envConfig.fireflyUrl).toBe("http://127.0.0.1:5001");
         expect(envConfig.fireflyNamespace).toBe("default");
-        expect(envConfig.fireflyApiName).toBe("sanction_contract");
+        expect(envConfig.fireflyApiName).toBe("sanctionsv2.0");
     });
 
     it("should prioritize FIREFLY_URL over FIREFLY_API_URL", async () => {
@@ -174,7 +174,7 @@ describe("envConfig", () => {
         process.env.FIREFLY_API_URL = "  http://localhost:5000  ";
         process.env.FIREFLY_NAMESPACE = "  default  ";
         process.env.FIREFLY_ISSUER_ID = "  worksiteid-issuer  ";
-        process.env.FIREFLY_API_NAME = "  sanction_contract  ";
+        process.env.FIREFLY_API_NAME = "  sanctionsv2.0  ";
 
         const { envConfig } = await import(
             "../../../backend/src/config/index.ts"
@@ -183,7 +183,7 @@ describe("envConfig", () => {
         expect(envConfig.fireflyUrl).toBe("http://localhost:5000");
         expect(envConfig.fireflyNamespace).toBe("default");
         expect(envConfig.fireflyIssuerId).toBe("worksiteid-issuer");
-        expect(envConfig.fireflyApiName).toBe("sanction_contract");
+        expect(envConfig.fireflyApiName).toBe("sanctionsv2.0");
     });
 
     it("should load issuer key configuration when provided", async () => {

@@ -35,7 +35,7 @@ const fireflyNamespace = checkString(fireflyNamespaceRaw, "FIREFLY_NAMESPACE");
 
 const fireflyIssuerId = checkString(process.env.FIREFLY_ISSUER_ID ?? "worksiteid-issuer", "FIREFLY_ISSUER_ID");
 
-const fireflyApiNameRaw = process.env.FIREFLY_API_NAME ?? "sanction_contract";
+const fireflyApiNameRaw = process.env.FIREFLY_API_NAME ?? "sanctionsv2.0";
 const fireflyApiName = checkString(fireflyApiNameRaw, "FIREFLY_API_NAME");
 
 // Percorsi per gli artifact ZKP Groth16

@@ -13,7 +13,7 @@ describe("FireFlyClient", () => {
 
     const defaultUrl = "http://127.0.0.1:5001";
     const defaultNamespace = "default";
-    const defaultApiName = "sanction_contract";
+    const defaultApiName = "sanctionsv2.0";
 
     beforeEach(() => {
         mockFetch = jest.fn();
@@ -72,7 +72,7 @@ describe("FireFlyClient", () => {
             const [url, options] = mockFetch.mock.calls[0];
 
             expect(url).toBe(
-                "http://127.0.0.1:5001/api/v1/namespaces/default/apis/sanction_contract/invoke/CreateLicense?confirm=true",
+                "http://127.0.0.1:5001/api/v1/namespaces/default/apis/sanctionsv2.0/invoke/CreateLicense?confirm=true",
             );
             expect(options.method).toBe("POST");
             expect(options.headers).toEqual({
@@ -131,7 +131,7 @@ describe("FireFlyClient", () => {
             const [url, options] = mockFetch.mock.calls[0];
 
             expect(url).toBe(
-                "http://127.0.0.1:5001/api/v1/namespaces/default/apis/sanction_contract/query/GetLicense",
+                "http://127.0.0.1:5001/api/v1/namespaces/default/apis/sanctionsv2.0/query/GetLicense",
             );
             expect(options.method).toBe("POST");
             expect(options.headers).toEqual({

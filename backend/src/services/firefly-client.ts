@@ -69,7 +69,7 @@ export class FireFlyClientImpl implements FireFlyClient {
 
         this.#baseUrl = rawUrl.trim().replace(/\/+$/, "");
         this.#namespace = (config?.namespace ?? envConfig.fireflyNamespace ?? "default").trim();
-        this.#apiName = (config?.apiName ?? envConfig.fireflyApiName ?? "sanction_contract").trim();
+        this.#apiName = (config?.apiName ?? envConfig.fireflyApiName ?? "sanctionsv2.0").trim();
         this.#fetchFn = config?.fetchFn ?? globalThis.fetch.bind(globalThis);
     }
 
