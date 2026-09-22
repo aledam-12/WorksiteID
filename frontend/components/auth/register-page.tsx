@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2, KeyRound, ShieldCheck, CheckCircle2, ArrowRight, ArrowLeft, AlertCircle } from 'lucide-react'
+import { Loader2, KeyRound, ShieldCheck, CheckCircle2, ArrowRight, ArrowLeft, AlertCircle, HardHat, UserCheck, ChevronRight } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import Link from 'next/link'
 
@@ -111,15 +111,15 @@ export default function RegisterPage() {
 
           {/* Stepper indicator */}
           <div className="flex items-center justify-center gap-2 pt-2 text-xs font-medium text-muted-foreground">
-            <span className={`px-2 py-0.5 rounded-full ${step === 'form' ? 'bg-primary text-primary-foreground font-bold' : 'bg-muted'}`}>
+            <span className={`px-2.5 py-0.5 rounded-full ${step === 'form' ? 'bg-primary text-primary-foreground font-bold' : 'bg-muted'}`}>
               1. Dati
             </span>
-            <span>→</span>
-            <span className={`px-2 py-0.5 rounded-full ${step === 'passkey' ? 'bg-primary text-primary-foreground font-bold' : 'bg-muted'}`}>
+            <ChevronRight className="size-3 text-muted-foreground" />
+            <span className={`px-2.5 py-0.5 rounded-full ${step === 'passkey' ? 'bg-primary text-primary-foreground font-bold' : 'bg-muted'}`}>
               2. Passkey
             </span>
-            <span>→</span>
-            <span className={`px-2 py-0.5 rounded-full ${step === 'completed' ? 'bg-emerald-600 text-white font-bold' : 'bg-muted'}`}>
+            <ChevronRight className="size-3 text-muted-foreground" />
+            <span className={`px-2.5 py-0.5 rounded-full ${step === 'completed' ? 'bg-emerald-600 text-white font-bold' : 'bg-muted'}`}>
               3. Concluso
             </span>
           </div>
@@ -149,9 +149,11 @@ export default function RegisterPage() {
                         : 'border-border bg-card text-muted-foreground hover:bg-muted/40'
                     }`}
                   >
-                    <span className="text-xl mb-1">👷</span>
+                    <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-1.5">
+                      <HardHat className="size-4.5" />
+                    </div>
                     <span className="text-xs font-semibold">Lavoratore</span>
-                    <span className="text-[10px] text-muted-foreground">Patente a crediti ZKP</span>
+                    <span className="text-[10px] text-muted-foreground">Patente a crediti</span>
                   </button>
 
                   <button
@@ -163,7 +165,9 @@ export default function RegisterPage() {
                         : 'border-border bg-card text-muted-foreground hover:bg-muted/40'
                     }`}
                   >
-                    <span className="text-xl mb-1">🕵️</span>
+                    <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-1.5">
+                      <UserCheck className="size-4.5" />
+                    </div>
                     <span className="text-xs font-semibold">Ispettore</span>
                     <span className="text-[10px] text-muted-foreground">Verifica e sanzioni</span>
                   </button>
@@ -285,10 +289,20 @@ export default function RegisterPage() {
 
               <div className="rounded-lg bg-muted/60 p-4 border text-xs space-y-2">
                 <div className="font-semibold text-foreground">Riepilogo Registrazione:</div>
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Ruolo:</span>
-                  <span className="font-bold text-primary">
-                    {formData.userType === 'inspector' ? '🕵️ Ispettore' : '👷 Lavoratore'}
+                  <span className="font-bold text-primary flex items-center gap-1.5">
+                    {formData.userType === 'inspector' ? (
+                      <>
+                        <UserCheck className="size-3.5" />
+                        Ispettore
+                      </>
+                    ) : (
+                      <>
+                        <HardHat className="size-3.5" />
+                        Lavoratore
+                      </>
+                    )}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -351,7 +365,7 @@ export default function RegisterPage() {
 
               <div className="space-y-1">
                 <h3 className="text-lg font-bold text-foreground">
-                  ✓ Account {formData.userType === 'inspector' ? 'Ispettore' : 'Lavoratore'} Pronto e Protetto
+                  Account {formData.userType === 'inspector' ? 'Ispettore' : 'Lavoratore'} Registrato e Protetto
                 </h3>
                 <p className="text-xs text-muted-foreground">
                   {formData.userType === 'inspector'
