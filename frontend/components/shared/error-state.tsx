@@ -16,7 +16,7 @@ export function ErrorState({ message, onRetry }: ErrorStateProps) {
       </Alert>
       {onRetry && (
         <Button onClick={onRetry} variant="outline">
-          Try Again
+          Riprova
         </Button>
       )}
     </div>

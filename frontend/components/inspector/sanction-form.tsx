@@ -25,16 +25,16 @@ export default function SanctionForm() {
 
   const validateForm = () => {
     if (!licenseRef.trim()) {
-      setError('Inserisci il license reference della patente')
+      setError('Inserisci il codice di riferimento della patente')
       return false
     }
     const penaltyNum = parseInt(penalty, 10)
     if (isNaN(penaltyNum) || penaltyNum <= 0) {
-      setError('La decurtazione crediti deve essere un numero maggiore di 0')
+      setError('La decurtazione crediti deve essere un numero positivo maggiore di 0')
       return false
     }
     if (!reason.trim()) {
-      setError('La motivazione della sanzione è obbligatoria')
+      setError('La descrizione e motivazione dell’infrazione è obbligatoria')
       return false
     }
     return true
@@ -71,7 +71,7 @@ export default function SanctionForm() {
       setPenalty('')
       setReason('')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Emissione sanzione fallita')
+      setError(err instanceof Error ? err.message : 'Emissione sanzione non riuscita')
       setState('idle')
     }
   }
@@ -87,52 +87,63 @@ export default function SanctionForm() {
 
   if (state === 'success' && result) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Sanzione Emessa con Successo</h1>
-          <p className="text-muted-foreground">La decurtazione crediti è stata registrata nel sistema</p>
+      <div className="space-y-6 max-w-2xl mx-auto">
+        <div className="flex items-center justify-between border-b pb-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Sanzione Emessa</h1>
+            <p className="text-sm text-muted-foreground">La decurtazione crediti è stata applicata con successo</p>
+          </div>
+          <Link href="/inspector">
+            <Button variant="ghost" size="sm" className="gap-2 text-xs">
+              <ArrowLeft className="size-4" />
+              Panoramica
+            </Button>
+          </Link>
         </div>
 
-        <Card className="border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/30">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-emerald-900 dark:text-emerald-100">
-              <CheckCircle2 className="size-6 text-emerald-600 dark:text-emerald-400" />
-              Sanzione Registrata
+        <Card className="border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/30 shadow-sm">
+          <CardHeader className="text-center pb-4">
+            <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 mb-2">
+              <CheckCircle2 className="size-7" />
+            </div>
+            <CardTitle className="text-emerald-900 dark:text-emerald-100 text-xl font-bold">
+              Verbale Registrato con Successo
             </CardTitle>
-            <CardDescription className="text-emerald-700 dark:text-emerald-300">
-              I crediti sono stati automaticamente scalati dallo stato della patente del lavoratore.
+            <CardDescription className="text-emerald-700 dark:text-emerald-300 text-xs">
+              I crediti sono stati decurtati e lo stato della patente è stato aggiornato sul registro.
             </CardDescription>
           </CardHeader>
+
           <CardContent className="space-y-4 text-emerald-950 dark:text-emerald-100">
-            <div className="rounded-lg bg-background/80 p-4 border border-emerald-200 dark:border-emerald-900 space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">ID Sanzione:</span>
+            <div className="rounded-lg bg-background/80 p-4 border border-emerald-200 dark:border-emerald-900 space-y-2.5 text-xs">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Numero Verbale:</span>
                 <span className="font-mono font-bold">{result.sanctionId}</span>
               </div>
 
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Crediti Decurtati:</span>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Decurtazione Applicata:</span>
                 <span className="font-bold text-destructive">-{result.penalty} crediti</span>
               </div>
 
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Data e Ora:</span>
-                <span>{result.issuedAt}</span>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Data e Ora Registrazione:</span>
+                <span className="font-mono">{result.issuedAt}</span>
               </div>
 
-              <div className="text-sm pt-2 border-t">
-                <span className="text-muted-foreground block mb-1">Motivazione:</span>
-                <span className="font-medium">{result.reason}</span>
+              <div className="pt-2 border-t">
+                <span className="text-muted-foreground block mb-1">Motivazione Verbale:</span>
+                <span className="font-medium text-foreground">{result.reason}</span>
               </div>
             </div>
 
-            <div className="flex gap-3">
-              <Button onClick={handleNewSanction} className="flex-1">
-                Emetti un'Altra Sanzione
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Button onClick={handleNewSanction} className="w-full">
+                Compila Altro Verbale
               </Button>
-              <Link href="/inspector/sanctions" className="flex-1">
+              <Link href="/inspector/sanctions" className="w-full">
                 <Button variant="outline" className="w-full">
-                  Visualizza Registro Sanzioni
+                  Registro Sanzioni
                 </Button>
               </Link>
             </div>
@@ -143,45 +154,45 @@ export default function SanctionForm() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 max-w-2xl mx-auto">
+      <div className="flex items-center justify-between border-b pb-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Emissione Sanzione di Cantiere</h1>
-          <p className="text-muted-foreground">Registra un'infrazione e decurta crediti dalla patente del lavoratore</p>
+          <h1 className="text-2xl font-bold tracking-tight">Emissione Sanzione di Cantiere</h1>
+          <p className="text-sm text-muted-foreground">Registra un&apos;infrazione e applica la decurtazione crediti</p>
         </div>
         <Link href="/inspector/sanctions">
-          <Button variant="ghost" className="gap-2">
+          <Button variant="ghost" size="sm" className="gap-2 text-xs">
             <ArrowLeft className="size-4" />
             Registro Sanzioni
           </Button>
         </Link>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+      <Card className="shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
             <Gavel className="size-5 text-destructive" />
             Verbale di Contestazione Infrazione
           </CardTitle>
-          <CardDescription>
-            Tutti i campi sono obbligatori ai sensi della normativa sulla patente a crediti
+          <CardDescription className="text-xs">
+            I campi sono predisposti ai sensi del D.Lgs. 81/2008 in materia di sicurezza sul lavoro.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
               <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription className="text-xs">{error}</AlertDescription>
               </Alert>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor="licenseRef" className="text-sm font-medium">
-                Riferimento Patente (LicenseRef) <span className="text-destructive">*</span>
+            <div className="space-y-1.5">
+              <Label htmlFor="licenseRef" className="text-xs font-semibold">
+                Codice Riferimento Patente <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="licenseRef"
-                placeholder="es. 4a2b... (hash pseudonimo della patente)"
+                placeholder="es. 4a2b... (codice identificativo della patente)"
                 value={licenseRef}
                 onChange={(e) => {
                   setLicenseRef(e.target.value)
@@ -192,14 +203,14 @@ export default function SanctionForm() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="penalty" className="text-sm font-medium">
-                Punti / Crediti da Decurtare <span className="text-destructive">*</span>
+            <div className="space-y-1.5">
+              <Label htmlFor="penalty" className="text-xs font-semibold">
+                Crediti da Decurtare <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="penalty"
                 type="number"
-                placeholder="es. 5 (infrazione grave) o 10 (mancanza DPI anticaduta)"
+                placeholder="es. 5 (infrazione grave) o 10 (violazione norme anticaduta)"
                 min="1"
                 max="30"
                 value={penalty}
@@ -209,14 +220,14 @@ export default function SanctionForm() {
                 }}
                 disabled={state !== 'idle'}
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[11px] text-muted-foreground">
                 Decurtazione secondo tabella allegato I-bis D.Lgs. 81/2008.
               </p>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="reason" className="text-sm font-medium">
-                Descrizione e Motivazione Infrazione <span className="text-destructive">*</span>
+            <div className="space-y-1.5">
+              <Label htmlFor="reason" className="text-xs font-semibold">
+                Descrizione e Motivazione dell&apos;Infrazione <span className="text-destructive">*</span>
               </Label>
               <Textarea
                 id="reason"
@@ -227,50 +238,51 @@ export default function SanctionForm() {
                   setError(null)
                 }}
                 disabled={state !== 'idle'}
-                className="resize-none"
+                className="resize-none text-xs"
                 rows={4}
               />
             </div>
 
             <Button type="submit" disabled={state !== 'idle'} className="w-full gap-2">
               <Gavel className="size-4" />
-              Verifica e Conferma Sanzione
+              Verifica e Applica Sanzione
             </Button>
           </form>
         </CardContent>
       </Card>
 
       <Dialog open={state === 'confirming' || state === 'submitting'}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Conferma Emissione Sanzione</DialogTitle>
-            <DialogDescription>
-              Attenzione: la decurtazione crediti sarà applicata immediatamente allo stato crittografico della patente.
+            <DialogDescription className="text-xs">
+              La decurtazione crediti sarà applicata immediatamente allo stato della patente sul registro.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
-            <div className="rounded-lg bg-muted/70 p-4 space-y-2 text-sm">
+            <div className="rounded-lg bg-muted/70 p-4 space-y-2 text-xs">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Patente:</span>
-                <span className="font-mono text-xs break-all max-w-[240px]">{licenseRef}</span>
+                <span className="font-mono text-xs break-all max-w-[200px]">{licenseRef}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Decurtazione:</span>
                 <span className="font-bold text-destructive">-{penalty} crediti</span>
               </div>
-              <div>
+              <div className="border-t pt-2">
                 <span className="text-muted-foreground block mb-1">Motivazione:</span>
-                <span className="font-medium">{reason}</span>
+                <span className="font-medium text-foreground">{reason}</span>
               </div>
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:gap-0">
             <Button
               variant="outline"
               onClick={handleCancel}
               disabled={state === 'submitting'}
+              className="text-xs"
             >
               Annulla
             </Button>
@@ -278,17 +290,17 @@ export default function SanctionForm() {
               variant="destructive"
               onClick={handleConfirm}
               disabled={state === 'submitting'}
-              className="gap-2"
+              className="gap-2 text-xs"
             >
               {state === 'submitting' ? (
                 <>
-                  <Loader2 className="size-4 animate-spin" />
+                  <Loader2 className="size-3.5 animate-spin" />
                   Registrazione in corso...
                 </>
               ) : (
                 <>
-                  <Gavel className="size-4" />
-                  Applica Sanzione
+                  <Gavel className="size-3.5" />
+                  Conferma Sanzione
                 </>
               )}
             </Button>

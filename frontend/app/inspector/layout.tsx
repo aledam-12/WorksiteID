@@ -52,8 +52,8 @@ export default function InspectorLayout({
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="p-3 bg-muted rounded-md text-xs text-muted-foreground space-y-1">
-              <div>Ruolo Utente Attuale: <strong className="text-foreground capitalize">{user?.userType}</strong></div>
-              <div>ID Sessione: <span className="font-mono text-[11px]">{user?.userId}</span></div>
+              <div>Ruolo Utente Attuale: <strong className="text-foreground">Lavoratore Edile</strong></div>
+              <div>ID Utente: <span className="font-mono text-[11px]">{user?.userId}</span></div>
             </div>
 
             <div className="flex flex-col gap-2">

@@ -7,9 +7,10 @@ import { LoadingState } from '@/components/shared/loading-state'
 import { ErrorState } from '@/components/shared/error-state'
 import { apiClient } from '@/lib/api/client'
 import type { License } from '@/lib/api/types'
-import { AlertCircle, Copy, Check } from 'lucide-react'
+import { AlertCircle, Copy, Check, ShieldCheck, ArrowLeft } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import Link from 'next/link'
 
 export default function WorkerLicensePage() {
   const [license, setLicense] = useState<License | null>(null)
@@ -23,7 +24,7 @@ export default function WorkerLicensePage() {
         const data = await apiClient.worker.getLicense()
         setLicense(data)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load license')
+        setError(err instanceof Error ? err.message : 'Impossibile caricare i dati della patente')
       } finally {
         setLoading(false)
       }
@@ -42,74 +43,97 @@ export default function WorkerLicensePage() {
 
   if (loading) return <LoadingState />
   if (error) return <ErrorState message={error} />
-  if (!license) return <ErrorState message="License not found" />
+  if (!license) return <ErrorState message="Dati della patente non trovati" />
 
   const isNotEligible = license.verificationEligibility === 'NOT_ELIGIBLE'
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dettaglio Patente a Crediti</h1>
-        <p className="text-muted-foreground">Stato di conformità e identificativo crittografico di cantiere</p>
+    <div className="space-y-6 max-w-4xl mx-auto">
+      <div className="flex items-center justify-between border-b pb-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Dettaglio Patente a Crediti</h1>
+          <p className="text-sm text-muted-foreground">Stato di conformità e codice identificativo di cantiere</p>
+        </div>
+        <Link href="/worker">
+          <Button variant="ghost" size="sm" className="gap-2 text-xs">
+            <ArrowLeft className="size-4" />
+            Torna alla Panoramica
+          </Button>
+        </Link>
       </div>
 
       {isNotEligible && (
         <Alert variant="destructive">
           <AlertCircle className="size-4" />
           <AlertTitle>Attenzione: Accesso al Cantiere Interdetto</AlertTitle>
-          <AlertDescription>
-            La tua patente non possiede i requisiti minimi di idoneità ({license.status === 'REVOKED' ? 'Patente Revocata' : 'Crediti insufficienti, inferiori a 15'}).
+          <AlertDescription className="text-xs mt-1">
+            La patente non soddisfa i requisiti minimi di idoneità ({license.status === 'REVOKED' ? 'Patente Revocata' : 'Crediti insufficienti, inferiori alla soglia minima di 15'}).
           </AlertDescription>
         </Alert>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold">
-            Informazioni Stato e Sicurezza
+      <Card className="shadow-sm">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <ShieldCheck className="size-5 text-primary" />
+            Informazioni e Stato di Conformità
           </CardTitle>
-          <CardDescription>
-            I dati sono verificati in tempo reale tramite lo smart service crittografico
+          <CardDescription className="text-xs">
+            Dati sincronizzati con il registro di sicurezza e verificati crittograficamente
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid gap-6 sm:grid-cols-2">
-            <div>
-              <div className="text-sm text-muted-foreground mb-1">Stato Patente</div>
-              <StatusBadge status={license.status} />
+            <div className="p-4 bg-muted/40 rounded-lg space-y-2">
+              <span className="text-xs text-muted-foreground font-medium">Stato Patente</span>
+              <div>
+                <StatusBadge status={license.status} />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {license.status === 'ACTIVE'
+                  ? 'Patente attiva e valida per le attività di cantiere.'
+                  : 'Patente revocata a seguito di provvedimento disciplinare.'}
+              </p>
             </div>
 
-            <div>
-              <div className="text-sm text-muted-foreground mb-1">Idoneità di Verifica</div>
-              <StatusBadge status={license.verificationEligibility} />
+            <div className="p-4 bg-muted/40 rounded-lg space-y-2">
+              <span className="text-xs text-muted-foreground font-medium">Idoneità Varco</span>
+              <div>
+                <StatusBadge status={license.verificationEligibility} />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {license.verificationEligibility === 'ELIGIBLE'
+                  ? 'Soglia minima di crediti (≥ 15) verificata in sicurezza.'
+                  : 'Punteggio inferiore al minimo di legge per operare.'}
+              </p>
             </div>
           </div>
 
-          <div className="border-t pt-4">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-sm font-medium text-muted-foreground">Riferimento Patente (LicenseRef)</span>
-              <Button variant="ghost" size="sm" onClick={copyLicenseRef} className="h-7 text-xs gap-1">
+          <div className="border-t pt-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-foreground">Codice Riferimento Patente</span>
+              <Button variant="ghost" size="sm" onClick={copyLicenseRef} className="h-7 text-xs gap-1.5">
                 {copied ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
-                {copied ? 'Copiato' : 'Copia'}
+                {copied ? 'Copiato!' : 'Copia Codice'}
               </Button>
             </div>
-            <div className="p-3 bg-muted rounded-md font-mono text-xs break-all select-all">
+            <div className="p-3 bg-muted/70 rounded-md font-mono text-xs break-all select-all border">
               {license.licenseRef}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Digest pseudonimo HMAC-SHA256: tutela la privacy del lavoratore sul cantiere.
+            <p className="text-[11px] text-muted-foreground">
+              Codice identificativo di sicurezza: consente le verifiche ispettive tutelando la privacy dei dati personali.
             </p>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 border-t pt-4">
-            <div>
-              <div className="text-sm text-muted-foreground mb-1">Versione Stato Patente</div>
-              <div className="text-xl font-bold">v{license.version}</div>
+          <div className="grid gap-4 sm:grid-cols-2 border-t pt-4 text-xs">
+            <div className="space-y-1">
+              <span className="text-muted-foreground">Versione di Stato</span>
+              <div className="text-base font-bold">v{license.version}</div>
             </div>
 
-            <div>
-              <div className="text-sm text-muted-foreground mb-1">Ultimo Aggiornamento Verificato</div>
-              <div className="text-sm font-medium pt-1">{license.lastUpdated}</div>
+            <div className="space-y-1">
+              <span className="text-muted-foreground">Ultimo Aggiornamento</span>
+              <div className="text-sm font-medium font-mono">{license.lastUpdated}</div>
             </div>
           </div>
         </CardContent>

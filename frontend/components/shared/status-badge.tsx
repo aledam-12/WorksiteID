@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/badge'
-import { CheckCircle2, XCircle, Clock, AlertTriangle, LucideIcon } from 'lucide-react'
+import { CheckCircle2, XCircle, Clock, AlertTriangle, type LucideIcon } from 'lucide-react'
 
 interface StatusBadgeProps {
   status: string
@@ -9,42 +9,42 @@ interface StatusBadgeProps {
 export function StatusBadge({ status, variant }: StatusBadgeProps) {
   const config: Record<string, { label: string; className: string; icon: LucideIcon }> = {
     ACTIVE: {
-      label: 'ACTIVE',
+      label: 'ATTIVA',
       className: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-300',
       icon: CheckCircle2,
     },
     REVOKED: {
-      label: 'REVOKED',
+      label: 'REVOCATA',
       className: 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 border-red-300',
       icon: XCircle,
     },
     PASS: {
-      label: '✓ PASS',
+      label: 'IDONEO (PASS)',
       className: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-300',
       icon: CheckCircle2,
     },
     NOT_PASS: {
-      label: '✕ NOT PASS',
+      label: 'NON IDONEO',
       className: 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 border-red-300',
       icon: XCircle,
     },
     ELIGIBLE: {
-      label: 'ELIGIBLE',
+      label: 'IDONEO AL VARCO',
       className: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-300',
       icon: CheckCircle2,
     },
     NOT_ELIGIBLE: {
-      label: 'NOT ELIGIBLE',
+      label: 'ACCESSO INTERDETTO',
       className: 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 border-red-300',
       icon: XCircle,
     },
     PENDING: {
-      label: 'PENDING',
+      label: 'IN ATTESA',
       className: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-300',
       icon: Clock,
     },
     ERROR: {
-      label: 'ERROR',
+      label: 'ERRORE',
       className: 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 border-red-300',
       icon: AlertTriangle,
     },

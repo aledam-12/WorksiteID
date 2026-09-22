@@ -20,7 +20,7 @@ export default function Page() {
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-background">
-        <div className="text-muted-foreground">Loading...</div>
+        <div className="text-muted-foreground text-sm">Caricamento in corso...</div>
       </main>
     )
   }

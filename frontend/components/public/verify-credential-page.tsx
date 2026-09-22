@@ -41,7 +41,7 @@ export default function VerifyCredentialPage() {
   const handleVerify = async () => {
     const trimmed = credentialData.trim()
     if (!trimmed) {
-      setError('Incolla il JSON della credenziale o carica un file .json per la verifica.')
+      setError('Incolla il JSON della credenziale o carica un file .json per avviare la verifica.')
       return
     }
 
@@ -76,59 +76,59 @@ export default function VerifyCredentialPage() {
   if (state === 'success' && result?.result === 'PASS') {
     return (
       <main className="flex min-h-screen items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-2xl border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/30">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-emerald-900 dark:text-emerald-100 text-xl">
-                <CheckCircle2 className="size-6 text-emerald-600 dark:text-emerald-400" />
-                Credential Valid
-              </CardTitle>
+        <Card className="w-full max-w-2xl border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/30 shadow-sm">
+          <CardHeader className="text-center pb-4">
+            <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 mb-2">
+              <CheckCircle2 className="size-7" />
             </div>
-            <CardDescription className="text-emerald-700 dark:text-emerald-300">
-              La firma digitale Ed25519 dell&apos;emettitore è autentica e la struttura W3C della credenziale è valida.
+            <CardTitle className="text-emerald-900 dark:text-emerald-100 text-xl font-bold">
+              Credenziale Valida e Autentica
+            </CardTitle>
+            <CardDescription className="text-emerald-700 dark:text-emerald-300 text-xs">
+              La firma digitale Ed25519 dell&apos;emettitore è autentica e la struttura W3C è conforme.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 text-emerald-950 dark:text-emerald-100">
-            <div className="rounded-lg bg-background/85 p-4 border border-emerald-200 dark:border-emerald-900 space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Esito:</span>
-                <span className="font-semibold text-emerald-600 dark:text-emerald-400">Credential Valid (PASS)</span>
+            <div className="rounded-lg bg-background/85 p-4 border border-emerald-200 dark:border-emerald-900 space-y-2.5 text-xs">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Esito Verifica:</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">IDONEO (PASS)</span>
               </div>
 
-              <div className="flex justify-between text-sm border-t pt-2">
-                <span className="text-muted-foreground">Emettitore (Issuer):</span>
+              <div className="flex justify-between border-t pt-2">
+                <span className="text-muted-foreground">Ente Emettitore:</span>
                 <span className="font-mono font-medium">{result.issuer || 'worksiteid-issuer'}</span>
               </div>
 
               {result.credentialSubject && (
                 <>
-                  <div className="flex justify-between text-sm border-t pt-2">
-                    <span className="text-muted-foreground">Lavoratore (Worker ID):</span>
+                  <div className="flex justify-between border-t pt-2">
+                    <span className="text-muted-foreground">ID Lavoratore:</span>
                     <span className="font-mono font-bold">{result.credentialSubject.workerId}</span>
                   </div>
 
-                  <div className="text-sm">
-                    <span className="text-muted-foreground block mb-1">Riferimento Patente (LicenseRef):</span>
-                    <span className="font-mono text-xs break-all bg-muted/40 p-2 rounded block">
+                  <div className="border-t pt-2">
+                    <span className="text-muted-foreground block mb-1">Codice Riferimento Patente:</span>
+                    <span className="font-mono text-xs break-all bg-muted/40 p-2 rounded block border">
                       {result.credentialSubject.licenseRef}
                     </span>
                   </div>
                 </>
               )}
 
-              <div className="flex justify-between text-sm border-t pt-2">
-                <span className="text-muted-foreground">Verifica Eseguita il:</span>
-                <span className="font-mono text-xs">{result.verifiedAt}</span>
+              <div className="flex justify-between border-t pt-2">
+                <span className="text-muted-foreground">Data e Ora Verifica:</span>
+                <span className="font-mono">{result.verifiedAt}</span>
               </div>
             </div>
 
-            <div className="flex gap-3">
-              <Button onClick={handleReset} className="flex-1">
-                Verifica un&apos;Altra Credenziale
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Button onClick={handleReset} className="w-full">
+                Verifica un&apos;altra credenziale
               </Button>
-              <Link href="/login" className="flex-1">
+              <Link href="/login" className="w-full">
                 <Button variant="outline" className="w-full">
-                  Torna al Login
+                  Torna all&apos;Accesso
                 </Button>
               </Link>
             </div>
@@ -141,37 +141,39 @@ export default function VerifyCredentialPage() {
   if (state === 'failed' || (state === 'success' && result?.result === 'NOT_PASS')) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-2xl border-red-200 bg-red-50/50 dark:border-red-900 dark:bg-red-950/30">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-red-900 dark:text-red-100 text-xl">
-              <XCircle className="size-6 text-red-600 dark:text-red-400" />
-              Credential Invalid
+        <Card className="w-full max-w-2xl border-red-200 bg-red-50/50 dark:border-red-900 dark:bg-red-950/30 shadow-sm">
+          <CardHeader className="text-center pb-4">
+            <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-400 mb-2">
+              <XCircle className="size-7" />
+            </div>
+            <CardTitle className="text-red-900 dark:text-red-100 text-xl font-bold">
+              Credenziale Non Valida
             </CardTitle>
-            <CardDescription className="text-red-700 dark:text-red-300">
-              La verifica crittografica della credenziale o della firma digitale Ed25519 ha dato esito negativo.
+            <CardDescription className="text-red-700 dark:text-red-300 text-xs">
+              La verifica della firma digitale Ed25519 o della struttura del documento ha dato esito negativo.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 text-red-950 dark:text-red-100">
-            <div className="rounded-lg bg-background/85 p-4 border border-red-200 dark:border-red-900 space-y-2">
-              <div className="flex justify-between text-sm">
+            <div className="rounded-lg bg-background/85 p-4 border border-red-200 dark:border-red-900 space-y-2.5 text-xs">
+              <div className="flex justify-between">
                 <span className="text-muted-foreground">Esito:</span>
-                <span className="font-semibold text-red-600 dark:text-red-400">Credential Invalid (NOT_PASS)</span>
+                <span className="font-bold text-red-600 dark:text-red-400">NON VALIDA (NOT PASS)</span>
               </div>
-              <div className="text-sm border-t pt-2">
-                <span className="text-muted-foreground block mb-1">Motivazione Rifiuto:</span>
+              <div className="border-t pt-2">
+                <span className="text-muted-foreground block mb-1">Motivazione:</span>
                 <span className="font-semibold text-red-600 dark:text-red-400">
-                  {result?.reason || error || 'Firma digitale non valida o struttura JSON compromessa'}
+                  {result?.reason || error || 'Firma digitale non valida o documento manomesso'}
                 </span>
               </div>
             </div>
 
-            <div className="flex gap-3">
-              <Button onClick={handleReset} className="flex-1">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Button onClick={handleReset} className="w-full">
                 Riprova Verifica
               </Button>
-              <Link href="/login" className="flex-1">
+              <Link href="/login" className="w-full">
                 <Button variant="outline" className="w-full">
-                  Torna al Login
+                  Torna all&apos;Accesso
                 </Button>
               </Link>
             </div>
@@ -183,36 +185,36 @@ export default function VerifyCredentialPage() {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-2xl shadow-lg">
-        <CardHeader className="space-y-1">
-          <div className="flex items-center justify-between mb-2">
+      <Card className="w-full max-w-2xl shadow-lg border-muted">
+        <CardHeader className="space-y-1.5 pb-4">
+          <div className="flex items-center justify-between mb-1">
             <Link href="/login" className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground">
               <ArrowLeft className="size-3 mr-1" />
               Torna al Login
             </Link>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-muted text-muted-foreground">
-              Accesso Pubblico
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-muted text-muted-foreground">
+              Verifica Pubblica
             </span>
           </div>
           <CardTitle className="text-2xl font-bold flex items-center gap-2">
             <ShieldCheck className="size-6 text-primary" />
-            Verifica Pubblica Verifiable Credential
+            Verifica Credenziale Digitale W3C
           </CardTitle>
-          <CardDescription>
-            Verifica l&apos;autenticità della firma Ed25519 e l&apos;integrità della credenziale W3C emessa dall&apos;autorità di cantiere.
+          <CardDescription className="text-xs">
+            Verifica l&apos;autenticità della firma Ed25519 e l&apos;integrità della patente di cantiere rilasciata.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-5">
+        <CardContent className="space-y-4">
           {error && (
             <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
+              <AlertDescription className="text-xs">{error}</AlertDescription>
             </Alert>
           )}
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label htmlFor="credential" className="text-sm font-medium">
-                Incolla o Carica il JSON della Credenziale W3C
+              <Label htmlFor="credential" className="text-xs font-semibold">
+                Payload JSON della Credenziale
               </Label>
               <div>
                 <input
@@ -231,7 +233,7 @@ export default function VerifyCredentialPage() {
                   className="h-7 text-xs gap-1"
                 >
                   <Upload className="size-3" />
-                  Carica File (.json)
+                  Carica File .json
                 </Button>
               </div>
             </div>
@@ -245,11 +247,11 @@ export default function VerifyCredentialPage() {
                 setError(null)
               }}
               className="font-mono text-xs resize-none"
-              rows={10}
+              rows={9}
               disabled={state === 'verifying'}
             />
-            <p className="text-xs text-muted-foreground">
-              Puoi incollare il payload JSON o caricare direttamente il file esportato dall&apos;area lavoratore.
+            <p className="text-[11px] text-muted-foreground">
+              Puoi incollare il testo JSON oppure caricare il file esportato dalla schermata del lavoratore.
             </p>
           </div>
 
@@ -261,7 +263,7 @@ export default function VerifyCredentialPage() {
             {state === 'verifying' ? (
               <>
                 <Loader2 className="size-4 animate-spin" />
-                Verifica crittografica Ed25519 in corso...
+                Verifica crittografica in corso...
               </>
             ) : (
               <>

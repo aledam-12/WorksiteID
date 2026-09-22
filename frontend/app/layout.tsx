@@ -4,8 +4,8 @@ import './globals.css'
 import { AuthProvider } from '@/lib/auth-context'
 
 export const metadata: Metadata = {
-  title: 'WorksiteID - Digital License & Verification Platform',
-  description: 'Privacy-Preserving Worksite License System using Zero-Knowledge Proofs and Verifiable Credentials',
+  title: 'WorksiteID - Piattaforma Digitale Patente a Crediti',
+  description: 'Sistema di gestione e verifica patente a crediti per cantieri edili conforme al D.Lgs. 81/2008 con Zero-Knowledge Proofs e Verifiable Credentials',
   icons: {
     icon: [
       {
@@ -39,7 +39,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="it">
       <body className="antialiased">
         <AuthProvider>{children}</AuthProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}

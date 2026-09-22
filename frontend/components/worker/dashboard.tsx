@@ -11,7 +11,7 @@ import { apiClient } from '@/lib/api/client'
 import type { License } from '@/lib/api/types'
 import { useAuth } from '@/lib/auth-context'
 import Link from 'next/link'
-import { Award, CheckCircle2, CreditCard, User, Building2, KeyRound, Loader2, Check } from 'lucide-react'
+import { Award, CheckCircle2, CreditCard, User, Building2, KeyRound, Loader2, Check, ShieldCheck } from 'lucide-react'
 
 export default function WorkerDashboard() {
   const { user, addPasskey } = useAuth()
@@ -56,25 +56,31 @@ export default function WorkerDashboard() {
 
   if (loading) return <LoadingState />
   if (error) return <ErrorState message={error} />
-  if (!license) return <ErrorState message="Dati patente non disponibili" />
+  if (!license) return <ErrorState message="Dati della patente non disponibili" />
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Pannello Lavoratore</h1>
-        <p className="text-muted-foreground">Panoramica del profilo di cantiere, stato patente e sicurezza</p>
+    <div className="space-y-6 max-w-6xl mx-auto">
+      {/* Intestazione pagina */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b pb-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Panoramica Lavoratore</h1>
+          <p className="text-sm text-muted-foreground">Profilo di cantiere, stato di conformità e sicurezza biometrica</p>
+        </div>
+        <Link href="/worker/verify">
+          <Button className="gap-2 shrink-0">
+            <CheckCircle2 className="size-4" />
+            Verifica Ingresso Varco
+          </Button>
+        </Link>
       </div>
 
-      {/* 1. Worker Profile Card (Name, Surname, Company, CF) */}
-      <Card className="border-muted">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
+      {/* Profilo Lavoratore */}
+      <Card className="border-muted shadow-sm">
+        <CardHeader className="pb-3 pt-5">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2 text-foreground">
             <User className="size-4 text-primary" />
-            Profilo Lavoratore Autenticato
+            Anagrafica Lavoratore
           </CardTitle>
-          <CardDescription>
-            Identità di cantiere verificata tramite autenticazione WebAuthn
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -97,69 +103,153 @@ export default function WorkerDashboard() {
             </div>
 
             <div className="space-y-1">
-              <span className="text-xs text-muted-foreground">Worker ID</span>
+              <span className="text-xs text-muted-foreground">ID Lavoratore</span>
               <div className="text-xs font-mono text-muted-foreground">{user?.userId}</div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* 2. License Status & Gate Eligibility (STRICT ZKP: No numeric credit count) */}
+      {/* Stato Patente e Idoneità Varco */}
       <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Stato Patente a Crediti
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <Card className="shadow-sm">
+          <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <CreditCard className="size-4 text-primary" />
+                Stato Patente a Crediti
+              </CardTitle>
               <StatusBadge status={license.status} />
-              <span className="text-xs font-mono text-muted-foreground">Versione {license.version}</span>
             </div>
-            <div className="text-xs text-muted-foreground">
-              {license.status === 'ACTIVE'
-                ? 'La patente è attiva e conforme ai requisiti di legge.'
-                : 'La patente è revocata a seguito di provvedimento sanzionatorio.'}
+            <CardDescription className="text-xs">
+              Conformità normativa ai sensi del D.Lgs. 81/2008
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 pt-1">
+            <div className="p-3 bg-muted/40 rounded-lg text-xs space-y-2">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Condizione Operativa:</span>
+                <span className="font-semibold">
+                  {license.status === 'ACTIVE' ? 'Patente Regolare' : 'Patente Sospesa / Revocata'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Versione di Stato:</span>
+                <span className="font-mono">v{license.version}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Ultimo Aggiornamento:</span>
+                <span className="font-mono">{license.lastUpdated}</span>
+              </div>
             </div>
+            <Link href="/worker/license" className="block pt-1">
+              <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground hover:text-foreground">
+                Visualizza dettagli patente →
+              </Button>
+            </Link>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Idoneità Accesso al Varco (Gate ZKP)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div>
+        <Card className="shadow-sm">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <ShieldCheck className="size-4 text-primary" />
+                Controllo Accesso al Varco
+              </CardTitle>
               <StatusBadge status={license.verificationEligibility} />
             </div>
-            <div className="text-xs text-muted-foreground">
-              {license.verificationEligibility === 'ELIGIBLE'
-                ? 'Requisiti soddisfatti (soglia minima ≥ 15 crediti dimostrabile in Zero-Knowledge).'
-                : 'Accesso interdetto: patente revocata o crediti insufficienti (< 15).'}
+            <CardDescription className="text-xs">
+              Verifica dei requisiti minimi per l&apos;ingresso in cantiere
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 pt-1">
+            <div className="p-3 bg-muted/40 rounded-lg text-xs space-y-2">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Requisito Minimo:</span>
+                <span className="font-semibold">Soglia ≥ 15 Crediti</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Riservatezza Dati:</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-medium">Crediti protetti da Zero-Knowledge</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Esito Autorizzativo:</span>
+                <span className="font-semibold">
+                  {license.verificationEligibility === 'ELIGIBLE' ? 'Accesso Consentito' : 'Ingresso Interdetto'}
+                </span>
+              </div>
             </div>
+            <Link href="/worker/verify" className="block pt-1">
+              <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground hover:text-foreground">
+                Avvia verifica varco →
+              </Button>
+            </Link>
           </CardContent>
         </Card>
       </div>
 
-      {/* 3. Multi-Device Passkey Management */}
-      <Card>
+      {/* Operazioni Rapide */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Link href="/worker/verify">
+          <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
+            <CardContent className="pt-5 pb-4 space-y-1.5">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <CheckCircle2 className="size-4 text-emerald-500" />
+                Verifica Ingresso
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Genera la prova crittografica per superare il varco di cantiere
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/worker/credential">
+          <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
+            <CardContent className="pt-5 pb-4 space-y-1.5">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Award className="size-4 text-primary" />
+                Credenziale Digitale
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Consulta la patente firmata in formato standard W3C
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/worker/license">
+          <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
+            <CardContent className="pt-5 pb-4 space-y-1.5">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <CreditCard className="size-4 text-amber-500" />
+                Stato Patente
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Dettagli di conformità e codice identificativo di cantiere
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
+      </div>
+
+      {/* Gestione Passkey */}
+      <Card className="border-muted shadow-sm">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <KeyRound className="size-4 text-primary" />
             Dispositivi di Sicurezza e Passkey
           </CardTitle>
-          <CardDescription>
-            Gestisci l&apos;accesso multi-dispositivo associando un nuovo telefono, tablet o computer al tuo account
+          <CardDescription className="text-xs">
+            Accedi da più dispositivi (smartphone, tablet o PC) associando nuove chiavi di sicurezza al tuo account
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {passkeySuccess && (
             <Alert className="border-emerald-300 bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100">
               <Check className="size-4 text-emerald-600" />
-              <AlertDescription>
+              <AlertDescription className="text-xs">
                 Nuova passkey registrata con successo e associata al tuo account.
               </AlertDescription>
             </Alert>
@@ -167,20 +257,20 @@ export default function WorkerDashboard() {
 
           {passkeyError && (
             <Alert variant="destructive">
-              <AlertDescription>{passkeyError}</AlertDescription>
+              <AlertDescription className="text-xs">{passkeyError}</AlertDescription>
             </Alert>
           )}
 
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
-            <div className="text-xs text-muted-foreground">
-              Il sistema supporta più passkey FIDO2 registrate sullo stesso account lavoratore senza condividere chiavi private.
-            </div>
+            <p className="text-xs text-muted-foreground">
+              Ogni dispositivo registrato conserva la propria chiave crittografica hardware in totale sicurezza.
+            </p>
             <Button
               onClick={handleAddPasskey}
               disabled={passkeyLoading}
               variant="outline"
               size="sm"
-              className="gap-2 shrink-0"
+              className="gap-2 shrink-0 text-xs"
             >
               {passkeyLoading ? (
                 <>
@@ -190,41 +280,11 @@ export default function WorkerDashboard() {
               ) : (
                 <>
                   <KeyRound className="size-3.5" />
-                  Aggiungi una nuova Passkey
+                  Aggiungi Passkey
                 </>
               )}
             </Button>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* 4. Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Operazioni di Cantiere</CardTitle>
-          <CardDescription>
-            Avvia la verifica crittografica ZKP per l&apos;ingresso o consulta la tua Verifiable Credential
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
-          <Link href="/worker/verify">
-            <Button className="gap-2">
-              <CheckCircle2 className="size-4" />
-              Verifica Accesso Gate (ZKP)
-            </Button>
-          </Link>
-          <Link href="/worker/credential">
-            <Button variant="outline" className="gap-2">
-              <Award className="size-4" />
-              Visualizza Credenziale W3C
-            </Button>
-          </Link>
-          <Link href="/worker/license">
-            <Button variant="ghost" className="gap-2">
-              <CreditCard className="size-4" />
-              Dettagli Patente
-            </Button>
-          </Link>
         </CardContent>
       </Card>
     </div>
