@@ -74,6 +74,29 @@ export interface VerificationChallenge {
   createdAt?: string
 }
 
+export interface ZkpProofResponse {
+  eligible?: boolean
+  reason?: string
+  circuitAssertion?: string
+  proofString?: string
+  proof?: unknown
+  publicSignals?: string[]
+  commitment?: string
+  challenge?: string
+  challengeBinding?: string
+  licenseRef?: string
+  creditsHidden?: boolean
+  generatedAt?: string
+}
+
+export interface VerificationChecks {
+  antiReplay?: boolean
+  mathGroth16?: boolean
+  onChainCommitment?: boolean
+  complianceActive?: boolean
+  creditsProtected?: boolean
+}
+
 export interface VerificationResult {
   result: 'PASS' | 'NOT_PASS'
   verifiedAt: string
@@ -81,6 +104,8 @@ export interface VerificationResult {
   status?: string
   credentialSubject?: CredentialSubject
   issuer?: string
+  checks?: VerificationChecks
+  challengeId?: string
 }
 
 // Sanction types

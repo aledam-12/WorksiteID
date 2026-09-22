@@ -32,7 +32,8 @@ import { type BlockchainService } from "./security/blockchain/blockchain.service
 import { type CommitmentService, CommitmentServiceImpl } from "./security/zkp/commitment.service.js";
 import { type ChallengeService, ChallengeServiceImpl } from "./security/zkp/challenge.service.js";
 import { LicenseReferenceService } from "./security/zkp/license-reference.service.js";
-import { type LicenseVerificationService } from "./security/zkp/license-verification.service.js";
+import { type LicenseVerificationService, LicenseVerificationServiceImpl } from "./security/zkp/license-verification.service.js";
+import { type ZkpService, ZkpServiceImpl } from "./security/zkp/zkp.service.js";
 import { type CredentialIssuerService, CredentialIssuerServiceImpl } from "./security/vc/vc-issuer.service.js";
 import { type CredentialVerifierService, CredentialVerifierServiceImpl } from "./security/vc/vc-verifier.service.js";
 import { type WebAuthnService, WebAuthnServiceImpl } from "./security/webauthn/webauthn.service.js";
@@ -56,6 +57,7 @@ export interface AppDependencies {
     credentialIssuerService?: CredentialIssuerService;
     credentialVerifierService?: CredentialVerifierService;
     licenseReferenceService?: LicenseReferenceService;
+    zkpService?: ZkpService;
     licenseVerificationService?: LicenseVerificationService;
     challengeService?: ChallengeService;
     webAuthnService?: WebAuthnService;
@@ -109,8 +111,11 @@ export function buildApp(deps: AppDependencies = {}): FastifyInstance {
     const commitmentService = deps.commitmentService ?? new CommitmentServiceImpl();
     const blockchainService = deps.blockchainService;
 
+    const zkpService = deps.zkpService ?? new ZkpServiceImpl();
     const challengeService = deps.challengeService ?? new ChallengeServiceImpl();
-    const verificationService = deps.licenseVerificationService;
+    const verificationService = deps.licenseVerificationService ?? (
+        blockchainService ? new LicenseVerificationServiceImpl(blockchainService, zkpService, challengeService) : undefined
+    );
 
     const issuerService = deps.credentialIssuerService ?? new CredentialIssuerServiceImpl(workerRepo, {}, licenseRepo);
     const verifierService = deps.credentialVerifierService ?? new CredentialVerifierServiceImpl({
@@ -137,6 +142,7 @@ export function buildApp(deps: AppDependencies = {}): FastifyInstance {
         issuerService,
         verifierService,
         challengeService,
+        zkpService,
         verificationService,
     });
 

@@ -3,7 +3,7 @@ import { buildApp } from "../../../backend/src/app.js";
 import { InMemoryUserRepository } from "../../../backend/src/repositories/user-repository.js";
 import { InMemoryWorkerRepository } from "../../../backend/src/repositories/worker-repository.js";
 import { InMemoryInspectorRepository } from "../../../backend/src/repositories/inspector-repository.js";
-import { InMemoryCredentialRepository } from "../../../backend/src/repositories/credential-repository.js";
+import { InMemoryWebAuthnCredentialRepository } from "../../../backend/src/repositories/webauthn-credential-repository.js";
 import { InMemoryLicenseRepository } from "../../../backend/src/repositories/license-repository.js";
 import { InMemorySanctionRepository } from "../../../backend/src/repositories/sanction-repository.js";
 import { User } from "../../../backend/src/domain/user.js";
@@ -14,12 +14,13 @@ import { PrivateLicenseState } from "../../../backend/src/domain/private-license
 import { WebAuthnUserType } from "../../../backend/src/domain/webauthn-credentials.js";
 import { LicenseReferenceService } from "../../../backend/src/services/license-reference-service.js";
 import { CredentialIssuerServiceImpl } from "../../../backend/src/services/credential-issuer-service.js";
+import { SessionManager } from "../../../backend/src/security/webauthn/session-manager.js";
 
 describe("Frontend Integration API Flows", () => {
     let userRepo: InMemoryUserRepository;
     let workerRepo: InMemoryWorkerRepository;
     let inspectorRepo: InMemoryInspectorRepository;
-    let credRepo: InMemoryCredentialRepository;
+    let credRepo: InMemoryWebAuthnCredentialRepository;
     let licenseRepo: InMemoryLicenseRepository;
     let sanctionRepo: InMemorySanctionRepository;
     const licenseRefSecret = "test-frontend-integration-secret";
@@ -29,7 +30,7 @@ describe("Frontend Integration API Flows", () => {
         userRepo = new InMemoryUserRepository();
         workerRepo = new InMemoryWorkerRepository();
         inspectorRepo = new InMemoryInspectorRepository();
-        credRepo = new InMemoryCredentialRepository();
+        credRepo = new InMemoryWebAuthnCredentialRepository();
         licenseRepo = new InMemoryLicenseRepository();
         sanctionRepo = new InMemorySanctionRepository();
     });
@@ -273,6 +274,88 @@ describe("Frontend Integration API Flows", () => {
             const licAfterRevoke = await licenseRepo.findByWorkerId(workerId);
             expect(licAfterRevoke?.status).toBe(LicenseStatusEnum.REVOKED);
             expect(licAfterRevoke?.credits).toBe(5);
+
+            await app.close();
+        });
+
+        it("flusso ZKP varco: richiesta challenge -> generazione prova (stringa) -> verifica varco con proofString", async () => {
+            const workerId = "WRK-FLOW-ZKP";
+            const licenseRef = licenseRefService.generateLicenseRef("LIC-FLOW-ZKP");
+
+            await userRepo.register(new User({ id: workerId, userType: WebAuthnUserType.WORKER }));
+            await workerRepo.register(new Worker({
+                id: workerId,
+                name: "Marco",
+                surname: "Gialli",
+                cf: "GLLMRC85A01H501Y",
+                company: "Edil Costruzioni S.r.l.",
+            }));
+
+            const license = new PrivateLicenseState(
+                "LIC-FLOW-ZKP",
+                30,
+                LicenseStatusEnum.ACTIVE,
+                "123456789",
+                1,
+                workerId,
+                licenseRef,
+            );
+            await licenseRepo.save(license);
+
+            const sessionMgr = new SessionManager();
+            const workerSessionId = sessionMgr.createSession({
+                userId: workerId,
+                userType: WebAuthnUserType.WORKER,
+                name: "Marco",
+                surname: "Gialli",
+            });
+
+            const app = buildApp({
+                userRepository: userRepo,
+                workerRepository: workerRepo,
+                licenseRepository: licenseRepo,
+                credentialRepository: credRepo,
+                sessionManager: sessionMgr,
+            });
+
+            // 1. Richiesta challenge al varco
+            const challengeRes = await app.inject({
+                method: "POST",
+                url: "/api/worker/verify/challenge",
+                headers: { authorization: `Bearer ${workerSessionId}` },
+            });
+            expect(challengeRes.statusCode).toBe(200);
+            const { challengeId, nonce } = challengeRes.json<{ challengeId: string; nonce: string }>();
+            expect(challengeId).toBeDefined();
+            expect(nonce).toBeDefined();
+
+            // 2. Client chiede la ZKP al backend
+            const proofRes = await app.inject({
+                method: "POST",
+                url: "/api/worker/verify/generate-proof",
+                headers: { authorization: `Bearer ${workerSessionId}` },
+                payload: { challengeId },
+            });
+            expect(proofRes.statusCode).toBe(200);
+            const proofData = proofRes.json<{ proofString: string; proof: unknown; publicSignals: string[] }>();
+            expect(proofData.proofString).toBeDefined();
+            expect(typeof proofData.proofString).toBe("string");
+            expect(proofData.publicSignals).toHaveLength(3);
+
+            // 3. Invio della stringa della prova al gateway per la verifica
+            const verifyRes = await app.inject({
+                method: "POST",
+                url: "/api/worker/verify",
+                headers: { authorization: `Bearer ${workerSessionId}` },
+                payload: {
+                    challengeId,
+                    proofString: proofData.proofString,
+                },
+            });
+            expect(verifyRes.statusCode).toBe(200);
+            const verifyResult = verifyRes.json<{ result: string; checks?: { antiReplay: boolean; mathGroth16: boolean } }>();
+            expect(verifyResult.result).toBe("PASS");
+            expect(verifyResult.checks?.antiReplay).toBe(true);
 
             await app.close();
         });

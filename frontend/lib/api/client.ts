@@ -11,6 +11,7 @@ import type {
   AddPasskeyOptionsResponse,
   License,
   VerificationChallenge,
+  ZkpProofResponse,
   VerificationResult,
   Sanction,
   Credential,
@@ -203,14 +204,22 @@ class APIClient {
       return this.request('/worker/verify/challenge', { method: 'POST' })
     },
 
+    generateZkpProof: async (challengeId: string): Promise<ZkpProofResponse> => {
+      return this.request('/worker/verify/generate-proof', {
+        method: 'POST',
+        body: JSON.stringify({ challengeId }),
+      })
+    },
+
     submitVerification: async (
       challengeId: string,
       proof?: unknown,
-      publicSignals?: unknown
+      publicSignals?: unknown,
+      proofString?: string
     ): Promise<VerificationResult> => {
       return this.request('/worker/verify', {
         method: 'POST',
-        body: JSON.stringify({ challengeId, proof, publicSignals }),
+        body: JSON.stringify({ challengeId, proof, publicSignals, proofString }),
       })
     },
 
