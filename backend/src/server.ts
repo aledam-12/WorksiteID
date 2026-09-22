@@ -1,16 +1,32 @@
+/**
+ * @file server.ts
+ * @description Punto di ingresso runtime (entrypoint) del backend WorksiteID.
+ * Inizializza il pool MySQL con fallback sicuro in-memory, verifica la connettività con FireFly / Fabric,
+ * istanzia i servizi di sicurezza concreti e avvia il server Fastify in ascolto su porta 3000.
+ *
+ * @dependencies
+ * - config/index.js: configurazione d'ambiente (porte, host, credenziali).
+ * - database/connection.js: creazione pool MySQL e ping di verifica.
+ * - repositories/*: implementazioni MySQL dei repository.
+ * - security/*: istanze reali di FireFlyClient, BlockchainService e CommitmentService.
+ * - app.js: factory buildApp.
+ */
+
 import { envConfig } from "./config/index.js";
 import { buildApp, type AppDependencies } from "./app.js";
 import { createDatabasePool, pingDatabase } from "./database/connection.js";
 import { MySqlUserRepository } from "./repositories/user-repository.js";
 import { MySqlWorkerRepository } from "./repositories/worker-repository.js";
 import { MySqlInspectorRepository } from "./repositories/inspector-repository.js";
-import { MySqlCredentialRepository } from "./repositories/credential-repository.js";
+import { MySqlWebAuthnCredentialRepository } from "./repositories/webauthn-credential-repository.js";
 import { MySqlLicenseRepository } from "./repositories/license-repository.js";
 import { MySqlSanctionRepository } from "./repositories/sanction-repository.js";
-import { FireFlyClientImpl } from "./services/firefly-client.js";
-import { BlockchainServiceImpl } from "./services/blockchain-service.js";
-import { CommitmentServiceImpl } from "./services/commitment-service.js";
+import { FireFlyClientImpl, BlockchainServiceImpl } from "./security/blockchain/index.js";
+import { CommitmentServiceImpl } from "./security/zkp/index.js";
 
+/**
+ * Avvia il server backend eseguendo i probe di connettività e collegando l'infrastruttura di persistenza.
+ */
 async function startServer() {
     let deps: AppDependencies = {};
 
@@ -35,7 +51,7 @@ async function startServer() {
                     userRepository: new MySqlUserRepository(pool),
                     workerRepository: new MySqlWorkerRepository(pool),
                     inspectorRepository: new MySqlInspectorRepository(pool),
-                    credentialRepository: new MySqlCredentialRepository(pool),
+                    credentialRepository: new MySqlWebAuthnCredentialRepository(pool),
                     licenseRepository: new MySqlLicenseRepository(pool),
                     sanctionRepository: new MySqlSanctionRepository(pool),
                 };

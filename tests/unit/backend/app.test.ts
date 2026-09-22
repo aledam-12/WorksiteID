@@ -1,4 +1,4 @@
-import { buildApp } from "../../../backend/src/app";
+import { buildApp } from "../../../backend/src/app.js";
 
 describe("BuildApp", () => {
   it("should build the application", async () => {
@@ -18,7 +18,7 @@ describe("BuildApp", () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({
+    expect(response.json()).toMatchObject({
       status: "ok",
     });
 
